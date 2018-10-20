@@ -11,9 +11,29 @@ extern "C" {
 
 /* ------------------------------------------------------------------------- */
 /* ----------------------------- USB interface ----------------------------- */
+template<int>
+struct tagsize;
+
+template<>
+struct tagsize<0> {
+	static constexpr unsigned value = 0;
+};
+template<>
+struct tagsize<1> {
+	static constexpr unsigned value = 1;
+};
+template<>
+struct tagsize<2> {
+	static constexpr unsigned value = 2;
+};
+template<>
+struct tagsize<4> {
+	static constexpr unsigned value = 3;
+};
+
 template<char ... Args>
 constexpr char mk_tag(int code) noexcept {
-	return (code | sizeof...(Args));
+	return (code | tagsize<sizeof...(Args)>::value);
 }
 //NUMARGS(...)  (sizeof((int[]){__VA_ARGS__})/sizeof(int))
 
@@ -28,14 +48,14 @@ constexpr char mk_tag(int code) noexcept {
 #define END_COLLECTION()    MK_TAG(0b1100'0000)
 
 namespace MainFlag {
-	constexpr char Constant = 0x01;
-	constexpr char Variable = 0x02;
-	constexpr char Relative = 0x04;
-	constexpr char Wrap = 0x08;
-	constexpr char Nonlinear = 0x10;
-	constexpr char NoPreferred = 0x20;
-	constexpr char NullState = 0x40;
-	constexpr char Volatile = (char)0x80;
+	constexpr char Constant = 0x01, Data = 0x00;
+	constexpr char Variable = 0x02, Array = 0x00;
+	constexpr char Relative = 0x04, Absolute = 0x00;
+	constexpr char Wrap = 0x08, NoWrap = 0x00;
+	constexpr char Nonlinear = 0x10, Linear = 0x00;
+	constexpr char NoPreferred = 0x20, Preferred = 0x00;
+	constexpr char NullState = 0x40, NoNullState = 0x00;
+	constexpr char Volatile = (char)0x80, NonVolatile = 0x00;
 };
 
 namespace Collection {
@@ -63,7 +83,7 @@ namespace UsagePage {
 	constexpr char GenericDesktop = 0x01;
 	constexpr char SimulationControls = 0x02;
 	constexpr char VRControls = 0x03;
-	constexpr char SportCOntrols = 0x04;
+	constexpr char SportControls = 0x04;
 	constexpr char GameControls = 0x05;
 	constexpr char GenericDeviceControls = 0x06;
 	constexpr char Keyboard = 0x07;
@@ -95,34 +115,39 @@ namespace GenericDesktop {
 #define USAGE_MIN(...) MK_TAG(0b0001'1000, ##__VA_ARGS__)
 #define USAGE_MAX(...) MK_TAG(0b0010'1000, ##__VA_ARGS__)
 
-PROGMEM const char usbHidReportDescriptor[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] = { /* USB report descriptor, size must match usbconfig.h */
+/* USB report descriptor, size must match usbconfig.h */
+PROGMEM const char usbHidReportDescriptor[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] = {
 	USAGE_PAGE(UsagePage::GenericDesktop),
 	USAGE(GenericDesktop::Mouse),
 	COLLECTION(Collection::Application),
 		USAGE(GenericDesktop::Pointer),
 		COLLECTION(Collection::Physical),
 			USAGE_PAGE(UsagePage::Button),
+			// Report buttons 1-3
 			USAGE_MIN(0x01),
 			USAGE_MAX(0x03),
+			// Buttons toggle 0,1
 			LOGICAL_MIN(0x00),
 			LOGICAL_MAX(0x01),
 			REPORT_COUNT(0x03),
 			REPORT_SIZE(0x01),
-			INPUT(0x02),                    // (Data,Var,Abs)
+			INPUT(MainFlag::Data | MainFlag::Variable | MainFlag::Absolute),
 
 			REPORT_COUNT(0x01),
 			REPORT_SIZE(0x05),
-			INPUT(0x03),                    // (Const,Var,Abs)
+			INPUT(MainFlag::Constant | MainFlag::Variable | MainFlag::Absolute),
 
 			USAGE_PAGE(UsagePage::GenericDesktop),
+			// Report 3 axis
 			USAGE(GenericDesktop::X),
 			USAGE(GenericDesktop::Y),
 			USAGE(GenericDesktop::Wheel),
+			// Rel value -127..127
 			LOGICAL_MIN((char)0x81),
 			LOGICAL_MAX(0x7F),
 			REPORT_SIZE(0x08),
 			REPORT_COUNT(0x03),
-			INPUT(0x06),                    // (Data,Var,Rel)
+			INPUT(MainFlag::Data | MainFlag::Variable | MainFlag::Relative),
 		END_COLLECTION(),
 	END_COLLECTION()
 };
