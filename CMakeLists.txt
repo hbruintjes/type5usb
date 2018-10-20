@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.9)
 
 set(AVR_UPLOADTOOL avrdude)
 set(AVR_PROGRAMMER usbtiny)
@@ -10,7 +10,7 @@ set(AVR_E_FUSE 0xfe)
 set(AVR_H_FUSE 0xdd)
 set(AVR_L_FUSE 0xdf)
 
-project(Keyboard C)
+project(Keyboard C CXX ASM)
 
 include(gcc-avr-util.cmake)
 
@@ -77,5 +77,7 @@ set(USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH 52)
 
 add_subdirectory(lib/v-usb/usbdrv)
 
-add_avr_executable(keyboard keyboard.c)
+add_avr_executable(keyboard keyboard.cpp)
+#set_target_properties(keyboard PROPERTIES LINKER_LANGUAGE CXX)
+
 target_link_libraries(keyboard PRIVATE vusb)

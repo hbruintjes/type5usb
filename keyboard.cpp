@@ -4,15 +4,16 @@
 #include <util/delay.h>     /* for _delay_ms() */
 
 #include <avr/pgmspace.h>   /* required by usbdrv.h */
-#include "usbdrv.h"
-#include "oddebug.h" /* This is also an example for using debug macros */
-
+extern "C" {
+	#include "usbdrv.h"
+	#include "oddebug.h" /* This is also an example for using debug macros */
+}
 
 /* ------------------------------------------------------------------------- */
 /* ----------------------------- USB interface ----------------------------- */
 /* ------------------------------------------------------------------------- */
 
-PROGMEM const char usbHidReportDescriptor[52] = { /* USB report descriptor, size must match usbconfig.h */
+PROGMEM const char usbHidReportDescriptor[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] = { /* USB report descriptor, size must match usbconfig.h */
 		0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
 		0x09, 0x02,                    // USAGE (Mouse)
 		0xa1, 0x01,                    // COLLECTION (Application)
@@ -56,31 +57,31 @@ typedef struct{
 }report_t;
 
 static report_t reportBuffer;
-static int      sinus = 7 << 6, cosinus = 0;
+static int      x = 0, y = 0;
 static uchar    idleRate;   /* repeat rate for keyboards, never used for mice */
 
-
-/* The following function advances sin/cos by a fixed angle
- * and stores the difference to the previous coordinates in the report
- * descriptor.
- * The algorithm is the simulation of a second order differential equation.
- */
 static void advanceCircleByFixedAngle(void)
 {
-	char    d;
-
-#define DIVIDE_BY_64(val)  (val + (val > 0 ? 32 : -32)) >> 6    /* rounding divide */
-	reportBuffer.dx = d = DIVIDE_BY_64(cosinus);
-	sinus += d;
-	reportBuffer.dy = d = DIVIDE_BY_64(sinus);
-	cosinus -= d;
+	if (x < 5 && y == 0) {
+		x++;
+		reportBuffer.dx = 1;
+	} else if (x == 5 && y < 5) {
+		y++;
+		reportBuffer.dy = 1;
+	} else if (x > 0 && y == 5) {
+		x--;
+		reportBuffer.dx = -1;
+	} else {
+		y--;
+		reportBuffer.dy = -1;
+	}
 }
 
 /* ------------------------------------------------------------------------- */
 
 usbMsgLen_t usbFunctionSetup(uchar data[8])
 {
-	usbRequest_t    *rq = (void *)data;
+	usbRequest_t    *rq = (usbRequest_t *)data;
 
 	/* The following requests are never used. But since they are required by
 	 * the specification, we implement them in this example.
@@ -89,7 +90,7 @@ usbMsgLen_t usbFunctionSetup(uchar data[8])
 		DBG1(0x50, &rq->bRequest, 1);   /* debug output: print our request */
 		if(rq->bRequest == USBRQ_HID_GET_REPORT){  /* wValue: ReportType (highbyte), ReportID (lowbyte) */
 			/* we only have one report type, so don't look at wValue */
-			usbMsgPtr = (void *)&reportBuffer;
+			usbMsgPtr = (usbMsgPtr_t)&reportBuffer;
 			return sizeof(reportBuffer);
 		}else if(rq->bRequest == USBRQ_HID_GET_IDLE){
 			usbMsgPtr = &idleRate;
@@ -104,11 +105,17 @@ usbMsgLen_t usbFunctionSetup(uchar data[8])
 }
 
 /* ------------------------------------------------------------------------- */
-
+static inline void main_body() {
+	wdt_reset();
+	usbPoll();
+	if(usbInterruptIsReady()){
+		/* called after every poll of the interrupt endpoint */
+		advanceCircleByFixedAngle();
+		usbSetInterrupt((uchar *)&reportBuffer, sizeof(reportBuffer));
+	}
+}
 int main(void)
 {
-	uchar   i;
-
 	wdt_enable(WDTO_1S);
 	/* If you don't use the watchdog, replace the call above with a wdt_disable().
 	 * On newer devices, the status of the watchdog (on/off, period) is PRESERVED
@@ -118,27 +125,16 @@ int main(void)
 	 * That's the way we need D+ and D-. Therefore we don't need any
 	 * additional hardware initialization.
 	 */
-	odDebugInit();
-	DBG1(0x00, 0, 0);       /* debug output: main starts */
 	usbInit();
 	usbDeviceDisconnect();  /* enforce re-enumeration, do this while interrupts are disabled! */
-	i = 0;
+	uchar i = 0;
 	while(--i){             /* fake USB disconnect for > 250 ms */
 		wdt_reset();
 		_delay_ms(1);
 	}
 	usbDeviceConnect();
 	sei();
-	DBG1(0x01, 0, 0);       /* debug output: main loop starts */
 	for(;;){                /* main event loop */
-		DBG1(0x02, 0, 0);   /* debug output: main loop iterates */
-		wdt_reset();
-		usbPoll();
-		if(usbInterruptIsReady()){
-			/* called after every poll of the interrupt endpoint */
-			advanceCircleByFixedAngle();
-			DBG1(0x03, 0, 0);   /* debug output: interrupt report prepared */
-			usbSetInterrupt((void *)&reportBuffer, sizeof(reportBuffer));
-		}
+		main_body();
 	}
 }
