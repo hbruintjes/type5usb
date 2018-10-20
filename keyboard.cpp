@@ -11,36 +11,120 @@ extern "C" {
 
 /* ------------------------------------------------------------------------- */
 /* ----------------------------- USB interface ----------------------------- */
+template<char ... Args>
+constexpr char mk_tag(int code) noexcept {
+	return (code | sizeof...(Args));
+}
+//NUMARGS(...)  (sizeof((int[]){__VA_ARGS__})/sizeof(int))
+
+#define MK_TAG(val, ...)    mk_tag<__VA_ARGS__>(val), ##__VA_ARGS__
+
 /* ------------------------------------------------------------------------- */
+// Main item tags
+#define INPUT(...)          MK_TAG(0b1000'0000, ##__VA_ARGS__)
+#define OUTPUT(...)         MK_TAG(0b1001'0000, ##__VA_ARGS__)
+#define FEATURE(...)        MK_TAG(0b1011'0000, ##__VA_ARGS__)
+#define COLLECTION(...)     MK_TAG(0b1010'0000, ##__VA_ARGS__)
+#define END_COLLECTION()    MK_TAG(0b1100'0000)
+
+namespace MainFlag {
+	constexpr char Constant = 0x01;
+	constexpr char Variable = 0x02;
+	constexpr char Relative = 0x04;
+	constexpr char Wrap = 0x08;
+	constexpr char Nonlinear = 0x10;
+	constexpr char NoPreferred = 0x20;
+	constexpr char NullState = 0x40;
+	constexpr char Volatile = (char)0x80;
+};
+
+namespace Collection {
+	constexpr char Physical = 0x00;
+	constexpr char Application = 0x01;
+	constexpr char Logical = 0x02;
+	constexpr char Report = 0x03;
+	constexpr char NamedArray = 0x04;
+	constexpr char UsageSwitch = 0x05;
+	constexpr char UsageModifier = 0x06;
+}
+
+// Global item tags
+#define USAGE_PAGE(...)   MK_TAG(0b0000'0100, ##__VA_ARGS__)
+#define LOGICAL_MIN(...)  MK_TAG(0b0001'0100, ##__VA_ARGS__)
+#define LOGICAL_MAX(...)  MK_TAG(0b0010'0100, ##__VA_ARGS__)
+#define PHYSICAL_MIN(...) MK_TAG(0b0011'0100, ##__VA_ARGS__)
+#define PHYSICAL_MAX(...) MK_TAG(0b0100'0100, ##__VA_ARGS__)
+#define REPORT_SIZE(...)  MK_TAG(0b0111'0100, ##__VA_ARGS__)
+#define REPORT_ID(...)    MK_TAG(0b1000'0100, ##__VA_ARGS__)
+#define REPORT_COUNT(...) MK_TAG(0b1001'0100, ##__VA_ARGS__)
+
+namespace UsagePage {
+	constexpr char Undefined = 0x00;
+	constexpr char GenericDesktop = 0x01;
+	constexpr char SimulationControls = 0x02;
+	constexpr char VRControls = 0x03;
+	constexpr char SportCOntrols = 0x04;
+	constexpr char GameControls = 0x05;
+	constexpr char GenericDeviceControls = 0x06;
+	constexpr char Keyboard = 0x07;
+	constexpr char LEDs = 0x08;
+	constexpr char Button = 0x09;
+	constexpr char Ordinal = 0x0A;
+};
+
+namespace GenericDesktop {
+	constexpr char Undefined = 0x00;
+	constexpr char Pointer = 0x01;
+	constexpr char Mouse = 0x02;
+
+	constexpr char JoyStick = 0x04;
+	constexpr char GamePad = 0x05;
+	constexpr char Keyboard = 0x06;
+	constexpr char Keypad = 0x07;
+	constexpr char MultiaxisController = 0x08;
+
+	constexpr char X = 0x30;
+	constexpr char Y = 0x31;
+	constexpr char Z = 0x32;
+
+	constexpr char Wheel = 0x38;
+};
+
+// Local item tags
+#define USAGE(...)     MK_TAG(0b0000'1000, ##__VA_ARGS__)
+#define USAGE_MIN(...) MK_TAG(0b0001'1000, ##__VA_ARGS__)
+#define USAGE_MAX(...) MK_TAG(0b0010'1000, ##__VA_ARGS__)
 
 PROGMEM const char usbHidReportDescriptor[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] = { /* USB report descriptor, size must match usbconfig.h */
-		0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
-		0x09, 0x02,                    // USAGE (Mouse)
-		0xa1, 0x01,                    // COLLECTION (Application)
-		0x09, 0x01,                    //   USAGE (Pointer)
-		0xA1, 0x00,                    //   COLLECTION (Physical)
-		0x05, 0x09,                    //     USAGE_PAGE (Button)
-		0x19, 0x01,                    //     USAGE_MINIMUM
-		0x29, 0x03,                    //     USAGE_MAXIMUM
-		0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
-		0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
-		0x95, 0x03,                    //     REPORT_COUNT (3)
-		0x75, 0x01,                    //     REPORT_SIZE (1)
-		0x81, 0x02,                    //     INPUT (Data,Var,Abs)
-		0x95, 0x01,                    //     REPORT_COUNT (1)
-		0x75, 0x05,                    //     REPORT_SIZE (5)
-		0x81, 0x03,                    //     INPUT (Const,Var,Abs)
-		0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
-		0x09, 0x30,                    //     USAGE (X)
-		0x09, 0x31,                    //     USAGE (Y)
-		0x09, 0x38,                    //     USAGE (Wheel)
-		0x15, 0x81,                    //     LOGICAL_MINIMUM (-127)
-		0x25, 0x7F,                    //     LOGICAL_MAXIMUM (127)
-		0x75, 0x08,                    //     REPORT_SIZE (8)
-		0x95, 0x03,                    //     REPORT_COUNT (3)
-		0x81, 0x06,                    //     INPUT (Data,Var,Rel)
-		0xC0,                          //   END_COLLECTION
-		0xC0,                          // END COLLECTION
+	USAGE_PAGE(UsagePage::GenericDesktop),
+	USAGE(GenericDesktop::Mouse),
+	COLLECTION(Collection::Application),
+		USAGE(GenericDesktop::Pointer),
+		COLLECTION(Collection::Physical),
+			USAGE_PAGE(UsagePage::Button),
+			USAGE_MIN(0x01),
+			USAGE_MAX(0x03),
+			LOGICAL_MIN(0x00),
+			LOGICAL_MAX(0x01),
+			REPORT_COUNT(0x03),
+			REPORT_SIZE(0x01),
+			INPUT(0x02),                    // (Data,Var,Abs)
+
+			REPORT_COUNT(0x01),
+			REPORT_SIZE(0x05),
+			INPUT(0x03),                    // (Const,Var,Abs)
+
+			USAGE_PAGE(UsagePage::GenericDesktop),
+			USAGE(GenericDesktop::X),
+			USAGE(GenericDesktop::Y),
+			USAGE(GenericDesktop::Wheel),
+			LOGICAL_MIN((char)0x81),
+			LOGICAL_MAX(0x7F),
+			REPORT_SIZE(0x08),
+			REPORT_COUNT(0x03),
+			INPUT(0x06),                    // (Data,Var,Rel)
+		END_COLLECTION(),
+	END_COLLECTION()
 };
 /* This is the same report descriptor as seen in a Logitech mouse. The data
  * described by this descriptor consists of 4 bytes:
