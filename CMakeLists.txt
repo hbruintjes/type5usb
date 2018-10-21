@@ -78,11 +78,13 @@ set(USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH 52)
 add_subdirectory(lib/v-usb/usbdrv)
 
 add_avr_executable(keyboard
-        keyboard.cpp
-        usb/report.h
-        usb/descriptor.h
-        )
+    keyboard.cpp
+    usb/report.h
+    usb/descriptor.h
+    keyboard/keyboard.cpp
+    keyboard/keyboard.h
+    )
 
 target_link_libraries(keyboard PRIVATE vusb)
-
 target_compile_options(keyboard PRIVATE "-std=c++14")
+target_include_directories(keyboard PRIVATE "${CMAKE_CURRENT_LIST_DIR}")

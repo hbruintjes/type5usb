@@ -4,12 +4,14 @@
 #include <util/delay.h>     /* for _delay_ms() */
 #include <avr/pgmspace.h>   /* required by usbdrv.h */
 
-#include "usb/descriptor.h"
+#include "usb/descriptor_kbd.h"
 
 extern "C" {
 	#include "usbdrv.h"
 	#include "oddebug.h" /* This is also an example for using debug macros */
 }
+
+#include "keyboard/keyboard.h"
 
 /* ------------------------------------------------------------------------- */
 /* ----------------------------- USB interface ----------------------------- */
@@ -41,25 +43,7 @@ static auto rx_buffer = ring_buffer<8>();
 static auto tx_buffer = ring_buffer<8>();
 
 static report_t reportBuffer;
-static int      x = 0, y = 0;
 static uchar    idleRate;   /* repeat rate for keyboards, never used for mice */
-
-static void advanceCircleByFixedAngle()
-{
-	if (x < 5 && y == 0) {
-		x++;
-		reportBuffer.dx = 1;
-	} else if (x == 5 && y < 5) {
-		y++;
-		reportBuffer.dy = 1;
-	} else if (x > 0 && y == 5) {
-		x--;
-		reportBuffer.dx = -1;
-	} else {
-		y--;
-		reportBuffer.dy = -1;
-	}
-}
 
 /* ------------------------------------------------------------------------- */
 
@@ -107,8 +91,7 @@ void uartInit(uint16_t baudrate, uint8_t sampling = 32u)
 	LINCR = _BV(LENA) | _BV(LCMD0) | _BV(LCMD1) | _BV(LCMD2);
 }
 
-SIGNAL(LIN_TC_vect)
-{
+SIGNAL(LIN_TC_vect) {
 	if(LINSIR & _BV(LRXOK)) {
 		if (!rx_buffer.full()) {
 			rx_buffer.push(LINDAT);
@@ -117,7 +100,7 @@ SIGNAL(LIN_TC_vect)
 			uint8_t c = LINDAT;
 		}
 	}
-	if(LINSIR & _BV(LTXOK)){
+	if(LINSIR & _BV(LTXOK)) {
 		if (tx_buffer.empty()) {
 			// Buffer empty, so disable interrupts
 			LINENIR &= ~_BV(LENTXOK);
@@ -150,12 +133,12 @@ static inline void main_body() {
 	usbPoll();
 	if(usbInterruptIsReady()){
 		/* called after every poll of the interrupt endpoint */
-		advanceCircleByFixedAngle();
+		// DO THING
 		usbSetInterrupt((uchar *)&reportBuffer, sizeof(reportBuffer));
 	}
 	if (!rx_buffer.empty()) {
 		// Parse UART data
-		rx_buffer.pop();
+		recv(rx_buffer.pop());
 	}
 }
 int main(void)
