@@ -180,8 +180,8 @@ function(add_avr_executable EXECUTABLE_NAME)
 
    # upload - with avrdude
    add_custom_target(
-      upload_${EXECUTABLE_NAME}
-      ${AVR_UPLOADTOOL} ${AVR_UPLOADTOOL_OPTIONS} -p ${AVR_MCU} -c ${AVR_PROGRAMMER}
+      ${EXECUTABLE_NAME}-upload
+      COMMAND ${AVR_UPLOADTOOL} ${AVR_UPLOADTOOL_OPTIONS} -p ${AVR_MCU} -c ${AVR_PROGRAMMER}
          -U "flash:w:${hex_file}"
          -P ${AVR_UPLOADTOOL_PORT}
       DEPENDS ${EXECUTABLE_NAME}
@@ -191,8 +191,8 @@ function(add_avr_executable EXECUTABLE_NAME)
    # upload eeprom only - with avrdude
    # see also bug http://savannah.nongnu.org/bugs/?40142
    add_custom_target(
-      upload_eeprom_${EXECUTABLE_NAME}
-      ${AVR_UPLOADTOOL} ${AVR_UPLOADTOOL_OPTIONS} -p ${AVR_MCU} -c ${AVR_PROGRAMMER}
+      ${EXECUTABLE_NAME}-upload_eeprom
+      COMMAND ${AVR_UPLOADTOOL} ${AVR_UPLOADTOOL_OPTIONS} -p ${AVR_MCU} -c ${AVR_PROGRAMMER}
          -U "eeprom:w:${eeprom_image}"
          -P ${AVR_UPLOADTOOL_PORT}
       DEPENDS ${EXECUTABLE_NAME}
@@ -201,9 +201,9 @@ function(add_avr_executable EXECUTABLE_NAME)
 
    # disassemble
    add_custom_target(
-      disassemble_${EXECUTABLE_NAME}
-      ${AVR_OBJDUMP} -h -S ${elf_file} > ${EXECUTABLE_NAME}.lst
-      DEPENDS ${elf_file}
+      ${EXECUTABLE_NAME}-disassemble
+      COMMAND ${AVR_OBJDUMP} -h -S $<TARGET_FILE:${EXECUTABLE_NAME}> > "$<TARGET_FILE_DIR:${EXECUTABLE_NAME}>/${EXECUTABLE_NAME}.lst"
+      DEPENDS ${EXECUTABLE_NAME}
    )
 
 endfunction(add_avr_executable)

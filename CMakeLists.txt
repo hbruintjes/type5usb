@@ -77,8 +77,11 @@ set(USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH 52)
 
 add_subdirectory(lib/v-usb/usbdrv)
 
-add_avr_executable(keyboard keyboard.cpp)
-#set_target_properties(keyboard PROPERTIES LINKER_LANGUAGE CXX)
+add_avr_executable(keyboard
+        keyboard.cpp
+        usb/report.h
+        usb/descriptor.h
+        )
 
 target_link_libraries(keyboard PRIVATE vusb)
 
