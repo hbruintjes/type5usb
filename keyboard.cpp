@@ -3,6 +3,7 @@
 #include <avr/interrupt.h>  /* for sei() */
 #include <util/delay.h>     /* for _delay_ms() */
 #include <avr/pgmspace.h>   /* required by usbdrv.h */
+#include <string.h>
 
 #include "usb/descriptor_kbd.h"
 
@@ -55,31 +56,67 @@ static auto tx_buffer = ring_buffer<8>();
 
 static report_t reportBuffer = { 0 };
 static uchar    idleRate;   /* repeat rate for keyboards, never used for mice */
-bool keyIntr = false;
+
+static inline void send_command(uint8_t c);
 
 static inline void recv_command(uint8_t c) {
-	if (c < 0x80) {
-		reportBuffer.keys[0] = keymap[c];
-	} else {
-		KeyUsage usbKey = keymap[c - 0x80];
-		reportBuffer.keys[0] = KeyUsage::RESERVED;
+	if (c == 0xFF) {
+		// Reset reply, ignore for now
+		return;
 	}
-	keyIntr = true;
+	if (c == 0x7F) {
+		// Clear
+		reportBuffer.modMask = 0;
+		memset(reportBuffer.keys, 0x00, 6);
+		return;
+	}
+
+	bool is_break = c >= 0x80;
+
+	c &= 0x7F;
+	auto key = keymap[c];
+	if (key == KeyUsage::RESERVED) {
+		return;
+	}
+
+	if (key >= KeyUsage::LEFTCTRL && key <= KeyUsage::RIGHTGUI)
+	{
+		auto bit = as_byte(key) - as_byte(KeyUsage::LEFTCTRL);
+		if (!is_break) {
+			reportBuffer.modMask |= _BV(bit);
+		} else {
+			reportBuffer.modMask &= ~_BV(bit);
+		}
+	} else {
+		if (!is_break) {
+			for (size_t i = 0; i < 6; i++) {
+				if (reportBuffer.keys[i] == KeyUsage::RESERVED) {
+					reportBuffer.keys[i] = key;
+					break;
+				}
+			}
+		} else {
+			for (size_t i = 0; i < 6; i++) {
+				if (reportBuffer.keys[i] == key) {
+					reportBuffer.keys[i] = KeyUsage::RESERVED;
+					break;
+				}
+			}
+		}
+
+	}
 }
 
 static inline void send_command(uint8_t c) {
-	cli();
 	if (tx_buffer.full()) {
-		sei();
 		return;
 	}
-	if(LINSIR & _BV(LBUSY)) {
-		tx_buffer.push(c);
-	} else {
-		LINDAT = c;
-	}
 
-	sei();
+	tx_buffer.push(c);
+	if(!(LINENIR & _BV(LENTXOK))) {
+		LINENIR |= _BV(LENTXOK);
+		LINDAT = tx_buffer.pop();
+	}
 }
 
 /* ------------------------------------------------------------------------- */
@@ -129,20 +166,16 @@ usbMsgLen_t usbFunctionSetup(uchar data[8])
 
 void uartInit(uint16_t baudrate, uint8_t sampling = 32u)
 {
-	PORTA = _BV(PA0) & ~_BV(PA1); // RX on A0, TX on A1
-	DDRA = 0xFF;
-
 	// Reset uart
 	LINCR = _BV(LSWRES);
 
 	// INTR on RX and TX
-	LINENIR =_BV(LENRXOK) | _BV(LENTXOK);
-	LINDAT = 0;
+	LINENIR = _BV(LENRXOK);// | _BV(LENTXOK);
 
-	LINBTR = static_cast<uint8_t>(_BV(LDISR) | sampling);
+	LINBTR = /*_BV(LDISR) | */static_cast<uint8_t>(sampling);
 
 	// LINBRR  = ((SYS_CLK /(BAUDRATE*LINBTR))-1)&0x0FFF;
-	LINBRR = static_cast<uint16_t>(((F_CPU*10/(baudrate*sampling)+5)/10) - 1);
+	LINBRR = static_cast<uint16_t>(((F_CPU*10/(baudrate*sampling)+5)/10) - 1) & 0x0FFF;
 
 	// enable UART Full Duplex mode
 	LINCR = _BV(LENA) | _BV(LCMD0) | _BV(LCMD1) | _BV(LCMD2);
@@ -150,7 +183,6 @@ void uartInit(uint16_t baudrate, uint8_t sampling = 32u)
 
 ISR(LIN_TC_vect) {
 	if(LINSIR & _BV(LRXOK)) {
-		keyIntr = true;
 		if (!rx_buffer.full()) {
 			rx_buffer.push(LINDAT);
 		} else {
@@ -159,10 +191,10 @@ ISR(LIN_TC_vect) {
 		}
 	}
 	if(LINSIR & _BV(LTXOK)) {
-		if (tx_buffer.empty()) {
-			PORTB &= ~_BV(PORTB1);
-		} else {
+		if (!tx_buffer.empty()) {
 			LINDAT = tx_buffer.pop();
+		} else {
+			LINENIR &= ~_BV(LENTXOK);
 		}
 	}
 }
@@ -187,35 +219,44 @@ ISR(TIMER0_COMPA_vect) {
 }
 
 static inline void main_body() {
-	wdt_reset(); //reset watchdog timer
+
 	usbPoll();
+	bool keyIntr = !rx_buffer.empty();
 	while (!rx_buffer.empty()) {
 		// Parse UART data
 		recv_command(rx_buffer.pop());
 	}
 	if(keyIntr && usbInterruptIsReady()) {
-		keyIntr = false;
-		//usbSetInterrupt((uchar *)&reportBuffer, sizeof(reportBuffer));
+		usbSetInterrupt((uchar *)&reportBuffer, sizeof(reportBuffer));
 	}
 }
 
-int main(void)
-{
-	wdt_enable(WDTO_1S); // enable the watchdog
-	uartInit(1200, 32);
+static void usbReset() {
+	cli();
+	usbDeviceDisconnect();
 	usbInit();
-	initTimer();
-	DDRB = _BV(PORTB1);
-	usbDeviceDisconnect();  /* enforce re-enumeration, do this while interrupts are disabled! */
+	/* fake USB disconnect for > 250 ms */
 	uchar i = 0;
-	while(--i){             /* fake USB disconnect for > 250 ms */
+	while(--i){
 		wdt_reset();
 		_delay_ms(1);
 	}
 	usbDeviceConnect();
 	sei();
+}
+
+int main(void)
+{
+	wdt_disable();
+	initTimer();
+	uartInit(1200, 32);
 	send_command(Keyboard::Command::RESET);
+
+	usbReset();
+
+	wdt_enable(WDTO_1S);
 	for(;;) {                /* main event loop */
+		wdt_reset();
 		main_body();
 	}
 }

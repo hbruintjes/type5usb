@@ -67,6 +67,7 @@ endif(CMAKE_BUILD_TYPE MATCHES Debug)
 ##########################################################################
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -pedantic -pedantic-errors")
 
+set(USB_CFG_IOPORTNAME "B")
 set(USB_CFG_DMINUS_BIT "3")
 set(USB_CFG_DPLUS_BIT "6")
 set(USB_CFG_HAVE_INTRIN_ENDPOINT ON)
