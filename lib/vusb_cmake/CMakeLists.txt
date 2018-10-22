@@ -1,6 +1,6 @@
 set(USB_CFG_IOPORTNAME "B" CACHE STRING "This is the port where the USB bus is connected. When you configure it to \"B\", the registers PORTB, PINB and DDRB will be used.")
-set(USB_CFG_DMINUS_BIT "3" CACHE STRING "This is the bit number in USB_CFG_IOPORT where the USB D- line is connected.")
-set(USB_CFG_DPLUS_BIT "6" CACHE STRING "This is the bit number in USB_CFG_IOPORT where the USB D+ line is connected.")
+set(USB_CFG_DMINUS_BIT "((char)3)" CACHE STRING "This is the bit number in USB_CFG_IOPORT where the USB D- line is connected.")
+set(USB_CFG_DPLUS_BIT "((char)6)" CACHE STRING "This is the bit number in USB_CFG_IOPORT where the USB D+ line is connected.")
 option(USB_CFG_CHECK_CRC "Define this to 1 if you want that the driver checks integrity of incoming data packets (CRC checks)." OFF)
 set(USB_CFG_PULLUP_IOPORTNAME "" CACHE STRING "This constant defines the port on which the pullup resistor is connected.")
 option(USB_CFG_HAVE_INTRIN_ENDPOINT "Define this to 1 if you want to compile a version with two endpoints" OFF)

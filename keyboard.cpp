@@ -17,18 +17,29 @@ extern "C" {
 /* ----------------------------- USB interface ----------------------------- */
 template<uint8_t Size>
 class ring_buffer {
+	static_assert(Size >= 2, "Ringbuffer too small");
 public:
 	void push(uint8_t c) {
 		buffer[w_pos] = c;
 		w_pos = static_cast<uint8_t>(w_pos + 1) % Size;
+	}
+	uint8_t cur() {
+		return buffer[r_pos];
 	}
 	uint8_t pop() {
 		auto& c = buffer[r_pos];
 		r_pos = static_cast<uint8_t>(r_pos + 1) % Size;
 		return c;
 	}
+	uint8_t size() {
+		if (r_pos > w_pos) {
+			return Size - (r_pos - w_pos);
+		} else {
+			return w_pos - r_pos;
+		}
+	}
 	bool full() const {
-		return (r_pos + 1) % Size == w_pos;
+		return (w_pos + 1) % Size == r_pos;
 	}
 	bool empty() const {
 		return w_pos == r_pos;
@@ -42,14 +53,39 @@ private:
 static auto rx_buffer = ring_buffer<8>();
 static auto tx_buffer = ring_buffer<8>();
 
-static report_t reportBuffer;
+static report_t reportBuffer = { 0 };
 static uchar    idleRate;   /* repeat rate for keyboards, never used for mice */
+bool keyIntr = false;
+
+static inline void recv_command(uint8_t c) {
+	if (c < 0x80) {
+		reportBuffer.keys[0] = keymap[c];
+	} else {
+		KeyUsage usbKey = keymap[c - 0x80];
+		reportBuffer.keys[0] = KeyUsage::RESERVED;
+	}
+	keyIntr = true;
+}
+
+static inline void send_command(uint8_t c) {
+	cli();
+	if (tx_buffer.full()) {
+		sei();
+		return;
+	}
+	if(LINSIR & _BV(LBUSY)) {
+		tx_buffer.push(c);
+	} else {
+		LINDAT = c;
+	}
+
+	sei();
+}
 
 /* ------------------------------------------------------------------------- */
-
 usbMsgLen_t usbFunctionSetup(uchar data[8])
 {
-	usbRequest_t    *rq = (usbRequest_t *)data;
+	usbRequest_t *rq = (usbRequest_t *)data;
 
 	/* The following requests are never used. But since they are required by
 	 * the specification, we implement them in this example.
@@ -59,6 +95,26 @@ usbMsgLen_t usbFunctionSetup(uchar data[8])
 			/* we only have one report type, so don't look at wValue */
 			usbMsgPtr = (usbMsgPtr_t)&reportBuffer;
 			return sizeof(reportBuffer);
+		}else if(rq->bRequest == USBRQ_HID_SET_REPORT){
+			/* Only one report type to consider, which is one byte exactly */
+			if (rq->wLength.word == 1) {
+				// Map LED bits to keyboard
+				uint8_t ledStatus = 0;
+				if (rq->wValue.bytes[1] & _BV(0)) {
+					ledStatus |= Keyboard::LED::NUMLOCK;
+				}
+				if (rq->wValue.bytes[1] & _BV(1)) {
+					ledStatus |= Keyboard::LED::CAPSLOCK;
+				}
+				if (rq->wValue.bytes[1] & _BV(2)) {
+					ledStatus |= Keyboard::LED::SCROLLLOCK;
+				}
+				if (rq->wValue.bytes[1] & _BV(3)) {
+					ledStatus |= Keyboard::LED::COMPOSE;
+				}
+				send_command(Keyboard::Command::LED_STATUS);
+				send_command(ledStatus);
+			}
 		}else if(rq->bRequest == USBRQ_HID_GET_IDLE){
 			usbMsgPtr = &idleRate;
 			return 1;
@@ -79,8 +135,9 @@ void uartInit(uint16_t baudrate, uint8_t sampling = 32u)
 	// Reset uart
 	LINCR = _BV(LSWRES);
 
-	// INTR on RX
-	LINENIR =_BV(LENRXOK);
+	// INTR on RX and TX
+	LINENIR =_BV(LENRXOK) | _BV(LENTXOK);
+	LINDAT = 0;
 
 	LINBTR = static_cast<uint8_t>(_BV(LDISR) | sampling);
 
@@ -91,8 +148,9 @@ void uartInit(uint16_t baudrate, uint8_t sampling = 32u)
 	LINCR = _BV(LENA) | _BV(LCMD0) | _BV(LCMD1) | _BV(LCMD2);
 }
 
-SIGNAL(LIN_TC_vect) {
+ISR(LIN_TC_vect) {
 	if(LINSIR & _BV(LRXOK)) {
+		keyIntr = true;
 		if (!rx_buffer.full()) {
 			rx_buffer.push(LINDAT);
 		} else {
@@ -102,50 +160,52 @@ SIGNAL(LIN_TC_vect) {
 	}
 	if(LINSIR & _BV(LTXOK)) {
 		if (tx_buffer.empty()) {
-			// Buffer empty, so disable interrupts
-			LINENIR &= ~_BV(LENTXOK);
+			PORTB &= ~_BV(PORTB1);
 		} else {
-			// There is more data in the output buffer. Send the next byte
 			LINDAT = tx_buffer.pop();
 		}
 	}
 }
 
+
 /* ------------------------------------------------------------------------- */
-static inline void recv(uint8_t c) {
-	//
+
+
+void initTimer() {
+	TCCR0A = _BV(WGM01);
+	TCCR0B = _BV(CS01) | _BV(CS00);
+	OCR0A = 0xff; // max delay
+	TIMSK0 = _BV(OCIE0A);
 }
 
-static inline void send(uint8_t c) {
-	while (tx_buffer.full()) {
-		//Idle
-	}
-	if (tx_buffer.empty()) {
-		LINENIR |= _BV(LENTXOK);
-		LINDAT = c;
-	} else {
-		tx_buffer.push(c);
+ISR(TIMER0_COMPA_vect) {
+	static uint16_t count = 0;
+	if (count++ == 0x800)
+	{
+		count = 0;
 	}
 }
 
 static inline void main_body() {
 	wdt_reset(); //reset watchdog timer
 	usbPoll();
-	if(usbInterruptIsReady()){
-		/* called after every poll of the interrupt endpoint */
-		// DO THING
-		usbSetInterrupt((uchar *)&reportBuffer, sizeof(reportBuffer));
-	}
-	if (!rx_buffer.empty()) {
+	while (!rx_buffer.empty()) {
 		// Parse UART data
-		recv(rx_buffer.pop());
+		recv_command(rx_buffer.pop());
+	}
+	if(keyIntr && usbInterruptIsReady()) {
+		keyIntr = false;
+		//usbSetInterrupt((uchar *)&reportBuffer, sizeof(reportBuffer));
 	}
 }
+
 int main(void)
 {
 	wdt_enable(WDTO_1S); // enable the watchdog
 	uartInit(1200, 32);
 	usbInit();
+	initTimer();
+	DDRB = _BV(PORTB1);
 	usbDeviceDisconnect();  /* enforce re-enumeration, do this while interrupts are disabled! */
 	uchar i = 0;
 	while(--i){             /* fake USB disconnect for > 250 ms */
@@ -154,7 +214,8 @@ int main(void)
 	}
 	usbDeviceConnect();
 	sei();
-	for(;;){                /* main event loop */
+	send_command(Keyboard::Command::RESET);
+	for(;;) {                /* main event loop */
 		main_body();
 	}
 }

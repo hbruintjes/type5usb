@@ -67,21 +67,27 @@ endif(CMAKE_BUILD_TYPE MATCHES Debug)
 ##########################################################################
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -pedantic -pedantic-errors")
 
+set(USB_CFG_DMINUS_BIT "3")
+set(USB_CFG_DPLUS_BIT "6")
 set(USB_CFG_HAVE_INTRIN_ENDPOINT ON)
 set(USB_CFG_INTR_POLL_INTERVAL 100)
 set(USB_CFG_MAX_BUS_POWER "500")
-set(USB_CFG_DEVICE_NAME "Mouse")
+set(USB_CFG_DEVICE_NAME "Keyboard emu")
 set(USB_CFG_DEVICE_CLASS 0)
 set(USB_CFG_INTERFACE_CLASS 3)
-set(USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH 52)
+set(USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH 63)
+set(USB_CFG_IMPLEMENT_FN_WRITE OFF)
 
 add_subdirectory(lib/v-usb/usbdrv)
 
 add_avr_executable(keyboard
     keyboard.cpp
+    keyboard/keyboard.cpp
+    usb/descriptor_kbd.cpp
+
     usb/report.h
     usb/descriptor.h
-    keyboard/keyboard.cpp
+    usb/descriptor_kbd.h
     keyboard/keyboard.h
     )
 

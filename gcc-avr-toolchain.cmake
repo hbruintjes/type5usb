@@ -187,6 +187,15 @@ function(add_avr_executable EXECUTABLE_NAME)
       DEPENDS ${EXECUTABLE_NAME}
       COMMENT "Uploading ${hex_file} to ${AVR_MCU} using ${AVR_PROGRAMMER}"
    )
+   # upload - with avrdude
+   add_custom_target(
+      ${EXECUTABLE_NAME}-upload-fast
+      COMMAND ${AVR_UPLOADTOOL} ${AVR_UPLOADTOOL_OPTIONS} -V -p ${AVR_MCU} -c ${AVR_PROGRAMMER}
+         -U "flash:w:${hex_file}"
+         -P ${AVR_UPLOADTOOL_PORT}
+      DEPENDS ${EXECUTABLE_NAME}
+      COMMENT "Uploading ${hex_file} to ${AVR_MCU} using ${AVR_PROGRAMMER}"
+   )
 
    # upload eeprom only - with avrdude
    # see also bug http://savannah.nongnu.org/bugs/?40142
