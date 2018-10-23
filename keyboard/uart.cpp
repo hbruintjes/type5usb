@@ -30,6 +30,10 @@ namespace uart {
 		return !rx_buffer.empty();
 	}
 
+	bool full() {
+		return rx_buffer.full();
+	}
+
 	uint8_t recv() {
 		return rx_buffer.pop();
 	}

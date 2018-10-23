@@ -57,6 +57,8 @@ namespace uart {
 
 	bool poll();
 
+	bool full();
+
 	uint8_t recv();
 
 	bool ready();

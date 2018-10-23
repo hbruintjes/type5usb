@@ -34,7 +34,7 @@ namespace keyboard {
 					report = {0};
 					if (rollover) {
 						rollover = false;
-						//command(::keyboard::command::click_off);
+						command(::keyboard::command::click_off);
 					}
 					return true;
 				} else if (rollover) {
@@ -72,20 +72,19 @@ namespace keyboard {
 			}
 		} else {
 			if (!is_break) {
-				command(::keyboard::command::click_on);
 				size_t i;
-				for (i = 0; i < 2; i++) {
+				for (i = 0; i < 6; i++) {
 					if (report.keys[i] == KeyUsage::RESERVED) {
 						report.keys[i] = key;
 						break;
 					}
 				}
-				if (i == 2) {
+				if (i == 6) {
 					rollover = true;
 					for (i = 0; i < 6; i++) {
 						report.keys[i] = KeyUsage::ERROR_ROLLOVER;
 					}
-					command(::keyboard::command::bell_on);
+					command(::keyboard::command::click_on);
 				}
 			} else {
 				command(::keyboard::command::click_off);

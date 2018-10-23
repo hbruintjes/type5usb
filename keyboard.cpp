@@ -101,7 +101,7 @@ static inline void main_body() {
 	}
 	if (keyIntr) {
 		// Wait for USB ready before handling next key
-		while(!usbInterruptIsReady()) {
+		while(!usbInterruptIsReady() && !uart::full()) {
 			usbPoll();
 			wdt_reset();
 		}
