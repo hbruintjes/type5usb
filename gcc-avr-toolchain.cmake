@@ -185,7 +185,7 @@ function(add_avr_executable EXECUTABLE_NAME)
          -U "flash:w:${hex_file}"
          -P ${AVR_UPLOADTOOL_PORT}
       DEPENDS ${EXECUTABLE_NAME}
-      COMMENT "Uploading ${hex_file} to ${AVR_MCU} using ${AVR_PROGRAMMER}"
+      COMMENT "Uploading ${OUTPUT_NAME}.hex to ${AVR_MCU} using ${AVR_PROGRAMMER}"
    )
    # upload - with avrdude
    add_custom_target(
@@ -194,7 +194,7 @@ function(add_avr_executable EXECUTABLE_NAME)
          -U "flash:w:${hex_file}"
          -P ${AVR_UPLOADTOOL_PORT}
       DEPENDS ${EXECUTABLE_NAME}
-      COMMENT "Uploading ${hex_file} to ${AVR_MCU} using ${AVR_PROGRAMMER}"
+      COMMENT "Uploading ${OUTPUT_NAME}.hex to ${AVR_MCU} using ${AVR_PROGRAMMER}"
    )
 
    # upload eeprom only - with avrdude

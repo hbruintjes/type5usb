@@ -1,9 +1,13 @@
 #pragma once
 
+#include "uart.h"
 #include <usb/report.h>
 
+extern "C" {
+#include <usbdrv.h>
+}
+
 #include <stdint.h>
-#include "uart.h"
 
 namespace keyboard {
 	enum class command : uint8_t {
@@ -54,11 +58,12 @@ namespace keyboard {
 		};
 
 		mode m_mode;
+		bool rollover;
 
 		bool handle_keycode(uint8_t key);
 
 	public:
-		keyboard() noexcept : report({0}), m_mode(mode::normal)
+		keyboard() noexcept : report({0}), m_mode(mode::normal), rollover(false)
 		{
 		}
 
@@ -69,45 +74,12 @@ namespace keyboard {
 			uart::send(as_byte(command), payload);
 		}
 
-		bool poll_event() {
-			if (!uart::poll()) {
-				return false;
-			}
-			uint8_t c = uart::recv();
-			switch (m_mode) {
-				case mode::reset:
-					if (c == response::reset_ok) {
-						m_mode = mode::normal;
-					} else if (c == response::reset_fail1) {
-						// Skip
-					} else if (c == response::reset_fail2) {
-						m_mode = mode::error;
-					}
-					break;
-				case mode::normal:
-					if (c == response::layout) {
-						m_mode = mode::layout;
-					} else if (c == response::reset) {
-						m_mode = mode::reset;
-					} else if (c == response::idle) {
-						report = { 0 };
-						return true;
-					} else {
-						// Parse keycode
-						return handle_keycode(c);
-					}
-					break;
-				case mode::error:
-					break;
-				case mode::layout:
-					// c is layout
-					m_mode = mode::normal;
-					break;
-			}
-			return false;
+		bool poll_event();
+
+		void send_report_intr() const {
+			usbSetInterrupt(const_cast<unsigned char*>(report_data), sizeof(report_data));
 		}
 
-		void send_report_intr() const;
 		uint8_t set_report_ptr(unsigned char* *ptr) const {
 			*ptr = const_cast<unsigned char*>(report_data);
 			return sizeof(report_data);
