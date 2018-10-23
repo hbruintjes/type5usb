@@ -54,21 +54,28 @@ private:
 static auto rx_buffer = ring_buffer<8>();
 static auto tx_buffer = ring_buffer<8>();
 
-static report_t reportBuffer = { 0 };
-static uchar    idleRate;   /* repeat rate for keyboards, never used for mice */
+static union {
+	report_t report;
+	unsigned char data[sizeof(report_t)];
+} reportBuffer = { 0 };
+
+/* repeat rate for keyboards, never used for mice */
+static uchar idleRate = 0;
+static uchar idleTime = 0;
+static bool reportIntr = false;
 
 static inline void send_command(uint8_t c);
 
-static inline void recv_command(uint8_t c) {
+static inline bool recv_command(uint8_t c) {
 	if (c == 0xFF) {
 		// Reset reply, ignore for now
-		return;
+		return false;
 	}
 	if (c == 0x7F) {
 		// Clear
-		reportBuffer.modMask = 0;
-		memset(reportBuffer.keys, 0x00, 6);
-		return;
+		reportBuffer.report.modMask = 0;
+		memset(reportBuffer.report.keys, 0x00, 6);
+		return true;
 	}
 
 	bool is_break = c >= 0x80;
@@ -76,35 +83,37 @@ static inline void recv_command(uint8_t c) {
 	c &= 0x7F;
 	auto key = keymap[c];
 	if (key == KeyUsage::RESERVED) {
-		return;
+		return false;
 	}
 
 	if (key >= KeyUsage::LEFTCTRL && key <= KeyUsage::RIGHTGUI)
 	{
 		auto bit = as_byte(key) - as_byte(KeyUsage::LEFTCTRL);
 		if (!is_break) {
-			reportBuffer.modMask |= _BV(bit);
+			reportBuffer.report.modMask |= _BV(bit);
 		} else {
-			reportBuffer.modMask &= ~_BV(bit);
+			reportBuffer.report.modMask &= ~_BV(bit);
 		}
 	} else {
 		if (!is_break) {
 			for (size_t i = 0; i < 6; i++) {
-				if (reportBuffer.keys[i] == KeyUsage::RESERVED) {
-					reportBuffer.keys[i] = key;
+				if (reportBuffer.report.keys[i] == KeyUsage::RESERVED) {
+					reportBuffer.report.keys[i] = key;
 					break;
 				}
 			}
 		} else {
 			for (size_t i = 0; i < 6; i++) {
-				if (reportBuffer.keys[i] == key) {
-					reportBuffer.keys[i] = KeyUsage::RESERVED;
+				if (reportBuffer.report.keys[i] == key) {
+					reportBuffer.report.keys[i] = KeyUsage::RESERVED;
 					break;
 				}
 			}
 		}
 
 	}
+
+	return true;
 }
 
 static inline void send_command(uint8_t c) {
@@ -120,48 +129,52 @@ static inline void send_command(uint8_t c) {
 }
 
 /* ------------------------------------------------------------------------- */
-usbMsgLen_t usbFunctionSetup(uchar data[8])
-{
-	usbRequest_t *rq = (usbRequest_t *)data;
+uchar usbFunctionWrite(uchar *data, uchar len) {
+	/* Only one report type to consider, which is one byte exactly */
+	if (len == 1) {
+		// Map LED bits to keyboard
+		uint8_t ledStatus = 0;
+		if (data[0] & _BV(0)) {
+			ledStatus |= Keyboard::LED::NUMLOCK;
+		}
+		if (data[0] & _BV(1)) {
+			ledStatus |= Keyboard::LED::CAPSLOCK;
+		}
+		if (data[0] & _BV(2)) {
+			ledStatus |= Keyboard::LED::SCROLLLOCK;
+		}
+		if (data[0] & _BV(3)) {
+			ledStatus |= Keyboard::LED::COMPOSE;
+		}
+		send_command(Keyboard::Command::LED_STATUS);
+		send_command(ledStatus);
+	}
 
-	/* The following requests are never used. But since they are required by
-	 * the specification, we implement them in this example.
-	 */
-	if((rq->bmRequestType & USBRQ_TYPE_MASK) == USBRQ_TYPE_CLASS){    /* class request type */
-		if(rq->bRequest == USBRQ_HID_GET_REPORT){  /* wValue: ReportType (highbyte), ReportID (lowbyte) */
-			/* we only have one report type, so don't look at wValue */
-			usbMsgPtr = (usbMsgPtr_t)&reportBuffer;
-			return sizeof(reportBuffer);
-		}else if(rq->bRequest == USBRQ_HID_SET_REPORT){
-			/* Only one report type to consider, which is one byte exactly */
-			if (rq->wLength.word == 1) {
-				// Map LED bits to keyboard
-				uint8_t ledStatus = 0;
-				if (rq->wValue.bytes[1] & _BV(0)) {
-					ledStatus |= Keyboard::LED::NUMLOCK;
-				}
-				if (rq->wValue.bytes[1] & _BV(1)) {
-					ledStatus |= Keyboard::LED::CAPSLOCK;
-				}
-				if (rq->wValue.bytes[1] & _BV(2)) {
-					ledStatus |= Keyboard::LED::SCROLLLOCK;
-				}
-				if (rq->wValue.bytes[1] & _BV(3)) {
-					ledStatus |= Keyboard::LED::COMPOSE;
-				}
-				send_command(Keyboard::Command::LED_STATUS);
-				send_command(ledStatus);
-			}
-		}else if(rq->bRequest == USBRQ_HID_GET_IDLE){
+	// Done
+	return 1;
+}
+
+usbMsgLen_t usbFunctionSetup(uchar data[8]) {
+	auto *rq = reinterpret_cast<usbRequest_t*>(data);
+
+	if((rq->bmRequestType & USBRQ_TYPE_MASK) == USBRQ_TYPE_CLASS) {    /* class request type */
+		/* wValue: ReportType (highbyte), ReportID (lowbyte) */
+		/* we only have one report type, so don't look at wValue */
+		if(rq->bRequest == USBRQ_HID_GET_REPORT){
+			usbMsgPtr = reportBuffer.data;
+			return sizeof(reportBuffer.data);
+		}else if(rq->bRequest == USBRQ_HID_SET_REPORT) {
+			// Let usbFunctionWrite take care of things
+			return USB_NO_MSG;
+		}else if(rq->bRequest == USBRQ_HID_GET_IDLE) {
 			usbMsgPtr = &idleRate;
 			return 1;
-		}else if(rq->bRequest == USBRQ_HID_SET_IDLE){
+		}else if(rq->bRequest == USBRQ_HID_SET_IDLE) {
 			idleRate = rq->wValue.bytes[1];
+			idleTime = idleRate;
 		}
-	}else{
-		/* no vendor specific requests implemented */
 	}
-	return 0;   /* default for not implemented requests: return no data back to host */
+	return 0; // No data returned
 }
 
 void uartInit(uint16_t baudrate, uint8_t sampling = 32u)
@@ -205,29 +218,45 @@ ISR(LIN_TC_vect) {
 
 void initTimer() {
 	TCCR0A = _BV(WGM01);
-	TCCR0B = _BV(CS01) | _BV(CS00);
-	OCR0A = 0xff; // max delay
+	TCCR0B = _BV(CS01) | _BV(CS00); // freq = F_CPU/1024
+	OCR0A = 0xff; // Compare 255, INTR_freq = freq/255
 	TIMSK0 = _BV(OCIE0A);
+
+	TCCR1A = _BV(WGM12); // Simple CTC timer
+	TCCR1B = _BV(WGM12) | _BV(CS12); // Simple CTC timer, prescale 256
+	OCR1A = 2500; // Compare at 2500, meaning 4ms delay
+	TIMSK1 = _BV(OCIE1A);
 }
 
 ISR(TIMER0_COMPA_vect) {
-	static uint16_t count = 0;
-	if (count++ == 0x800)
-	{
-		count = 0;
+    // Once every 16.32 ms
+}
+
+ISR(TIMER1_COMPA_vect) {
+	// Once every 4ms
+	if (idleTime > 1) {
+		idleTime--;
+	} else if (idleTime == 1) {
+		reportIntr = true;
 	}
 }
 
 static inline void main_body() {
-
 	usbPoll();
-	bool keyIntr = !rx_buffer.empty();
-	while (!rx_buffer.empty()) {
+	bool keyIntr = false;
+	while (!keyIntr && !rx_buffer.empty()) {
 		// Parse UART data
-		recv_command(rx_buffer.pop());
+		keyIntr = recv_command(rx_buffer.pop());
 	}
-	if(keyIntr && usbInterruptIsReady()) {
-		usbSetInterrupt((uchar *)&reportBuffer, sizeof(reportBuffer));
+	if (keyIntr || reportIntr) {
+		reportIntr = false;
+		idleTime = idleRate;
+		// Wait for USB ready before handling next key
+		while(!usbInterruptIsReady()) {
+			usbPoll();
+			wdt_reset();
+		}
+		usbSetInterrupt(reportBuffer.data, sizeof(reportBuffer.data));
 	}
 }
 
@@ -245,7 +274,7 @@ static void usbReset() {
 	sei();
 }
 
-int main(void)
+int main()
 {
 	wdt_disable();
 	initTimer();
