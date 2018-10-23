@@ -5,9 +5,9 @@
 
 /* USB report descriptor, size must match usbconfig.h */
 extern "C" PROGMEM const char usbDescriptorHidReport[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] = {
-		USAGE_PAGE(UsagePage::GenericDesktop),
-		USAGE(GenericDesktop::Keyboard),
-		COLLECTION(Collection::Application),
+	USAGE_PAGE(UsagePage::GenericDesktop),
+	USAGE(GenericDesktop::Keyboard),
+	COLLECTION(Collection::Application),
 		USAGE_PAGE(UsagePage::Keyboard),
 		// Report modifier keys
 		REPORT_SIZE(1),
@@ -41,5 +41,5 @@ extern "C" PROGMEM const char usbDescriptorHidReport[USB_CFG_HID_REPORT_DESCRIPT
 		LOGICAL_MIN(as_byte(KeyUsage::RESERVED)),
 		LOGICAL_MAX(as_byte(KeyUsage::VOLUME_DOWN)),
 		INPUT(MainFlag::Data | MainFlag::Array | MainFlag::Absolute),
-		END_COLLECTION()
+	END_COLLECTION()
 };

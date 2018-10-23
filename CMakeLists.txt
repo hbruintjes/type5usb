@@ -83,13 +83,18 @@ add_subdirectory(lib/v-usb/usbdrv)
 
 add_avr_executable(keyboard
     keyboard.cpp
-    keyboard/keyboard.cpp
-    usb/descriptor_kbd.cpp
 
+    usb/descriptor_kbd.cpp
     usb/report.h
     usb/descriptor.h
     usb/descriptor_kbd.h
-    keyboard/keyboard.h
+
+    keyboard/keymap.cpp
+    keyboard/keymap.h
+    keyboard/Keyboard.h
+    keyboard/Keyboard.cpp
+    keyboard/uart.h
+    keyboard/uart.cpp
     )
 
 target_link_libraries(keyboard PRIVATE vusb)

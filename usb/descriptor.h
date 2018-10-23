@@ -1,5 +1,8 @@
 #include "report.h"
+
 #include <usbconfig.h>
+
+#include <avr/pgmspace.h>
 
 /* USB report descriptor, size must match usbconfig.h */
 extern "C" PROGMEM const char usbDescriptorHidReport[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH] = {
