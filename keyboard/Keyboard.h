@@ -67,6 +67,10 @@ namespace keyboard {
 		{
 		}
 
+		void init() {
+			command(::keyboard::command::reset);
+		}
+
 		void command(::keyboard::command command) {
 			uart::send(as_byte(command));
 		}
@@ -75,6 +79,8 @@ namespace keyboard {
 		}
 
 		bool poll_event();
+
+		void set_led_report(unsigned char data);
 
 		void send_report_intr() const {
 			usbSetInterrupt(const_cast<unsigned char*>(report_data), sizeof(report_data));

@@ -28,21 +28,7 @@ static keyboard::keyboard keyboard_handler;
 uchar usbFunctionWrite(uchar *data, uchar len) {
 	/* Only one report type to consider, which is one byte exactly */
 	if (len == 1) {
-		// Map LED bits to keyboard
-		uint8_t ledStatus = 0;
-		if (data[0] & _BV(0)) {
-			ledStatus |= as_byte(keyboard::led::numlock);
-		}
-		if (data[0] & _BV(1)) {
-			ledStatus |= as_byte(keyboard::led::capslock);
-		}
-		if (data[0] & _BV(2)) {
-			ledStatus |= as_byte(keyboard::led::scrolllock);
-		}
-		if (data[0] & _BV(3)) {
-			ledStatus |= as_byte(keyboard::led::compose);
-		}
-		keyboard_handler.command(keyboard::command::led_status, ledStatus);
+		keyboard_handler.set_led_report(data[0]);
 	}
 
 	// Done
@@ -75,10 +61,10 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
 
 
 void initTimer() {
-	TCCR0A = _BV(WGM01);
-	TCCR0B = _BV(CS01) | _BV(CS00); // freq = F_CPU/1024
-	OCR0A = 0xff; // Compare 255, INTR_freq = freq/255
-	TIMSK0 = _BV(OCIE0A);
+//	TCCR0A = _BV(WGM01);
+//	TCCR0B = _BV(CS01) | _BV(CS00); // freq = F_CPU/1024
+//	OCR0A = 0xff; // Compare 255, INTR_freq = freq/255
+//	TIMSK0 = _BV(OCIE0A);
 
 	TCCR1A = _BV(WGM12); // Simple CTC timer
 	TCCR1B = _BV(WGM12) | _BV(CS12); // Simple CTC timer, prescale 256
@@ -142,7 +128,7 @@ int main()
 	wdt_disable();
 	initTimer();
 	uart::init(1200);
-	keyboard_handler.command(keyboard::command::reset);
+	keyboard_handler.init();
 
 	usbReset();
 

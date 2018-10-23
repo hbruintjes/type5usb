@@ -34,7 +34,7 @@ namespace keyboard {
 					report = {0};
 					if (rollover) {
 						rollover = false;
-						command(::keyboard::command::click_off);
+						//command(::keyboard::command::click_off);
 					}
 					return true;
 				} else if (rollover) {
@@ -55,10 +55,9 @@ namespace keyboard {
 	}
 
 	bool keyboard::handle_keycode(uint8_t c) {
-		bool is_break = (c >= 0x80);
+		bool is_break = (c & 0x80) != 0;
 
-		c &= 0x7F;
-		auto key = keymap[c];
+		auto& key = keymap[c & 0x7F];
 		if (key == KeyUsage::RESERVED) {
 			return false;
 		}
@@ -73,6 +72,7 @@ namespace keyboard {
 			}
 		} else {
 			if (!is_break) {
+				command(::keyboard::command::click_on);
 				size_t i;
 				for (i = 0; i < 2; i++) {
 					if (report.keys[i] == KeyUsage::RESERVED) {
@@ -85,9 +85,10 @@ namespace keyboard {
 					for (i = 0; i < 6; i++) {
 						report.keys[i] = KeyUsage::ERROR_ROLLOVER;
 					}
-					command(::keyboard::command::click_on);
+					command(::keyboard::command::bell_on);
 				}
 			} else {
+				command(::keyboard::command::click_off);
 				for (size_t i = 0; i < 6; i++) {
 					if (report.keys[i] == key) {
 						report.keys[i] = KeyUsage::RESERVED;
@@ -99,5 +100,23 @@ namespace keyboard {
 		}
 
 		return true;
+	}
+
+	void keyboard::set_led_report(unsigned char data) {
+		// Map LED bits to keyboard
+		uint8_t ledStatus = 0;
+		if (data & _BV(0)) {
+			ledStatus |= as_byte(led::numlock);
+		}
+		if (data & _BV(1)) {
+			ledStatus |= as_byte(led::capslock);
+		}
+		if (data & _BV(2)) {
+			ledStatus |= as_byte(led::scrolllock);
+		}
+		if (data & _BV(3)) {
+			ledStatus |= as_byte(led::compose);
+		}
+		command(::keyboard::command::led_status, ledStatus);
 	}
 }
