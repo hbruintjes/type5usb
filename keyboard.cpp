@@ -124,6 +124,7 @@ int main()
 	wdt_disable();
 	initTimer();
 	uart::init(1200);
+	_delay_ms(1000);
 	keyboard_handler.init();
 
 	usbReset();

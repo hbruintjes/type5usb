@@ -8,6 +8,7 @@ extern "C" {
 }
 
 #include <stdint.h>
+#include <util/delay.h>
 
 namespace keyboard {
 	enum class command : uint8_t {
@@ -53,10 +54,13 @@ namespace keyboard {
 		enum class mode : uint8_t {
 			reset,
 			normal,
+			fn,
 			error,
 			layout,
-			keyswap,
+			keyswap1,
+			keyswap2,
 			macro_record,
+			morse,
 		};
 
 		mode m_mode;
@@ -64,25 +68,51 @@ namespace keyboard {
 			clear,
 			in_use,
 			rollover,
-			fn
 		};
 		keystate m_keystate;
 
-		bool handle_keycode(uint8_t key);
+		static constexpr uint8_t keymapSize = 128;
+		uint8_t m_keyOverride[keymapSize];
+		uint8_t m_curOverride;
+		uint8_t m_macroBuffer[64];
+		uint8_t m_macroSize;
+		uint8_t m_ledState;
 
-		uint8_t keyOverride[128];
-		uint8_t macroBuffer[64];
-		uint8_t macroSize;
+		void load_overrides();
+		void save_overrides() const;
+		void clear_overrides();
+		bool handle_keycode(uint8_t key);
+		bool handle_keycode_fn(uint8_t key);
+		void handle_morsecode(uint8_t key);
+
+		template<uint16_t ms>
+		void beep() {
+			command(::keyboard::command::bell_on);
+			_delay_ms(ms);
+			command(::keyboard::command::bell_off);
+		}
+
+		void set_led(uint8_t state) {
+			m_ledState = state;
+			command(::keyboard::command::led_status, m_ledState);
+		}
+		void toggle_led(::keyboard::led led) {
+			m_ledState ^= static_cast<uint8_t>(led);
+			command(::keyboard::command::led_status, m_ledState);
+		}
 
 	public:
 		keyboard() noexcept :
 			report({0}), m_mode(mode::normal), m_keystate(keystate::clear),
-			keyOverride{0}, macroBuffer{0}, macroSize(0)
+			m_keyOverride{0}, m_curOverride(0),
+			m_macroBuffer{0}, m_macroSize(0),
+			m_ledState(0)
 		{
 		}
 
 		void init() {
 			command(::keyboard::command::reset);
+			load_overrides();
 		}
 
 		void command(::keyboard::command command) {

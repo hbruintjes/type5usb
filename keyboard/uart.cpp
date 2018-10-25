@@ -7,7 +7,8 @@
 #include <avr/interrupt.h>
 
 namespace uart {
-	static ring_buffer<8> rx_buffer = ring_buffer<8>();
+	// 8 single keypresses generate 24 symbols (due to 0x7f clear byte)
+	static ring_buffer<8*3> rx_buffer = ring_buffer<8*3>();
 	static ring_buffer<8> tx_buffer = ring_buffer<8>();
 
 	void init(uint16_t baudrate, uint8_t sampling) {
