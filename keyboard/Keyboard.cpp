@@ -125,9 +125,6 @@ namespace keyboard {
 
 				// Base action on what keys are depressed
 				switch (m_keystate) {
-					case keystate::rollover:
-						// Do nothing
-						break;
 					case keystate::clear:
 						if (c == ::keyboard::keys::fn) {
 							m_mode = mode::fn;
@@ -135,6 +132,9 @@ namespace keyboard {
 							break;
 						}
 						// Fall-through
+					case keystate::rollover:
+						// Handled by handle_keycode, modifiers may still be
+						// reported
 					default: // clear or in_use
 						return handle_keycode(c);
 				}
@@ -197,7 +197,7 @@ namespace keyboard {
 			return false;
 		}
 
-		if (!is_break) {
+		if (!is_break && m_keystate != keystate::rollover) {
 			m_keystate = keystate::in_use;
 		}
 
@@ -209,7 +209,7 @@ namespace keyboard {
 			} else {
 				report.modMask &= ~(1 << bit);
 			}
-		} else {
+		} else if (m_keystate != keystate::rollover) {
 			if (!is_break) {
 				size_t i;
 				for (i = 0; i < 6; i++) {
