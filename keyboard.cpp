@@ -22,6 +22,7 @@ extern "C" {
 /* repeat rate for keyboards, never used for mice */
 static uchar idleRate = 0;
 static uchar idleTime = 0;
+static uchar protocol = 0; // 0 or 1
 static keyboard::keyboard keyboard_handler;
 
 /* ------------------------------------------------------------------------- */
@@ -38,20 +39,25 @@ uchar usbFunctionWrite(uchar *data, uchar len) {
 usbMsgLen_t usbFunctionSetup(uchar data[8]) {
 	auto *rq = reinterpret_cast<usbRequest_t*>(data);
 
-	if((rq->bmRequestType & USBRQ_TYPE_MASK) == USBRQ_TYPE_CLASS) {    /* class request type */
+	if ((rq->bmRequestType & USBRQ_TYPE_MASK) == USBRQ_TYPE_CLASS) {    /* class request type */
 		/* wValue: ReportType (highbyte), ReportID (lowbyte) */
 		/* we only have one report type, so don't look at wValue */
-		if(rq->bRequest == USBRQ_HID_GET_REPORT) {
+		if (rq->bRequest == USBRQ_HID_GET_REPORT) {
 			return keyboard_handler.set_report_ptr(&usbMsgPtr);
-		}else if(rq->bRequest == USBRQ_HID_SET_REPORT) {
+		} else if (rq->bRequest == USBRQ_HID_SET_REPORT) {
 			// Let usbFunctionWrite take care of things
 			return USB_NO_MSG;
-		}else if(rq->bRequest == USBRQ_HID_GET_IDLE) {
+		} else if (rq->bRequest == USBRQ_HID_GET_IDLE) {
 			usbMsgPtr = &idleRate;
 			return 1;
-		}else if(rq->bRequest == USBRQ_HID_SET_IDLE) {
+		} else if (rq->bRequest == USBRQ_HID_SET_IDLE) {
 			idleRate = rq->wValue.bytes[1];
 			idleTime = idleRate;
+		} else if (rq->bRequest == USBRQ_HID_GET_PROTOCOL) {
+			usbMsgPtr = &keyboard_handler.get_protocol();
+			return 1;
+		} else if (rq->bRequest == USBRQ_HID_SET_PROTOCOL) {
+			keyboard_handler.set_protocol(rq->wValue.bytes[1]);
 		}
 	}
 	return 0; // No data returned

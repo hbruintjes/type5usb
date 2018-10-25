@@ -77,6 +77,7 @@ namespace keyboard {
 		uint8_t m_macroBuffer[64];
 		uint8_t m_macroSize;
 		uint8_t m_ledState;
+		uint8_t m_protocol;
 
 		void load_overrides();
 		void save_overrides() const;
@@ -102,17 +103,30 @@ namespace keyboard {
 		}
 
 	public:
+		static constexpr uint8_t protocol_report = 0;
+		static constexpr uint8_t protocol_boot = 1;
+
 		keyboard() noexcept :
 			report({0}), m_mode(mode::normal), m_keystate(keystate::clear),
 			m_keyOverride{0}, m_curOverride(0),
 			m_macroBuffer{0}, m_macroSize(0),
-			m_ledState(0)
+			m_ledState(0), m_protocol(protocol_report)
 		{
 		}
 
 		void init() {
 			command(::keyboard::command::reset);
 			load_overrides();
+		}
+
+		uint8_t& get_protocol() {
+			return m_protocol;
+		}
+
+		void set_protocol(uint8_t protocol) {
+			if (protocol == protocol_report || protocol == protocol_boot) {
+				m_protocol = protocol;
+			}
 		}
 
 		void command(::keyboard::command command) {
@@ -132,7 +146,11 @@ namespace keyboard {
 
 		uint8_t set_report_ptr(unsigned char* *ptr) const {
 			*ptr = const_cast<unsigned char*>(report_data);
-			return sizeof(report_data);
+			if (m_protocol == protocol_boot) {
+				return 8; // Fixed report size and layout
+			} else {
+				return sizeof(report_data);
+			}
 		}
 	};
 }
