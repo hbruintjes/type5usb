@@ -42,6 +42,10 @@ namespace uart {
 		return !tx_buffer.full();
 	}
 
+	void clear() {
+		rx_buffer.clear();
+	}
+
 	bool send(uint8_t c1, uint8_t c2) {
 		if (tx_buffer.free() < 2) {
 			return false;

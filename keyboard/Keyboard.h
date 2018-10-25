@@ -50,20 +50,34 @@ namespace keyboard {
 			report_t report;
 			unsigned char report_data[sizeof(report_t)];
 		};
-		enum class mode {
+		enum class mode : uint8_t {
 			reset,
 			normal,
 			error,
-			layout
+			layout,
+			keyswap,
+			macro_record,
 		};
 
 		mode m_mode;
-		bool rollover;
+		enum class keystate : uint8_t {
+			clear,
+			in_use,
+			rollover,
+			fn
+		};
+		keystate m_keystate;
 
 		bool handle_keycode(uint8_t key);
 
+		uint8_t keyOverride[128];
+		uint8_t macroBuffer[64];
+		uint8_t macroSize;
+
 	public:
-		keyboard() noexcept : report({0}), m_mode(mode::normal), rollover(false)
+		keyboard() noexcept :
+			report({0}), m_mode(mode::normal), m_keystate(keystate::clear),
+			keyOverride{0}, macroBuffer{0}, macroSize(0)
 		{
 		}
 

@@ -31,13 +31,19 @@ namespace keyboard {
 				} else if (c == response::reset) {
 					m_mode = mode::reset;
 				} else if (c == response::idle) {
-					report = {0};
-					if (rollover) {
-						rollover = false;
-						command(::keyboard::command::click_off);
+					// Avoid reporting empty too often
+					if (m_keystate != keystate::clear) {
+						report.modMask = 0;
+						for (size_t i = 0; i < 6; i++) {
+							report.keys[i] = KeyUsage::RESERVED;
+						}
+						if (m_keystate == keystate::rollover) {
+							command(::keyboard::command::click_off);
+						}
+						m_keystate = keystate::clear;
 					}
 					return true;
-				} else if (rollover) {
+				} else if (m_keystate == keystate::rollover) {
 					// Do nothing
 				} else {
 					// Parse keycode
@@ -56,10 +62,20 @@ namespace keyboard {
 
 	bool keyboard::handle_keycode(uint8_t c) {
 		bool is_break = (c & 0x80) != 0;
+		c &= 0x7F;
 
-		auto& key = keymap[c & 0x7F];
+		if (keyOverride[c] != 0) {
+			c = keyOverride[c];
+		}
+		auto key = static_cast<KeyUsage>(pgm_read_byte_near(keymap + c));
 		if (key == KeyUsage::RESERVED) {
+			if (!is_break) report.reserved = c;
 			return false;
+		}
+
+		if (!is_break) {
+			report.reserved = c;
+			m_keystate = keystate::in_use;
 		}
 
 		if (key >= KeyUsage::LEFTCTRL && key <= KeyUsage::RIGHTGUI)
@@ -80,7 +96,7 @@ namespace keyboard {
 					}
 				}
 				if (i == 6) {
-					rollover = true;
+					m_keystate = keystate::rollover;
 					for (i = 0; i < 6; i++) {
 						report.keys[i] = KeyUsage::ERROR_ROLLOVER;
 					}

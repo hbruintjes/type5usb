@@ -1,6 +1,6 @@
 #include "keymap.h"
 
-const KeyUsage keymap[0x80] = {
+extern const PROGMEM KeyUsage keymap[0x80] = {
 	KeyUsage::RESERVED,
 	KeyUsage::STOP,
 	KeyUsage::VOLUME_DOWN,
@@ -16,7 +16,7 @@ const KeyUsage keymap[0x80] = {
 	KeyUsage::F5,
 	KeyUsage::RIGHTALT,
 	KeyUsage::F6,
-	KeyUsage::ESCAPE,
+	KeyUsage::ESCAPE, // Was the unlabeled key cap, now has escape cap
 	KeyUsage::F7,
 	KeyUsage::F8,
 	KeyUsage::F9,
@@ -30,7 +30,7 @@ const KeyUsage keymap[0x80] = {
 	KeyUsage::UNDO,
 	KeyUsage::DOWN,
 	KeyUsage::RIGHT,
-	KeyUsage::BACKQUOTE,
+	KeyUsage::BACKQUOTE, // Was escape cap, now backquote cap
 	KeyUsage::N1,
 	KeyUsage::N2,
 	KeyUsage::N3,
@@ -43,7 +43,7 @@ const KeyUsage keymap[0x80] = {
 	KeyUsage::N0,
 	KeyUsage::MINUS,
 	KeyUsage::EQ,
-	KeyUsage::RESERVED,
+	KeyUsage::RESERVED, // was backquote cap, now unlabeled (used as FN)
 	KeyUsage::BACKSPACE,
 	KeyUsage::INSERT,
 	KeyUsage::MUTE,

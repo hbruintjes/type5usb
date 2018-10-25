@@ -46,6 +46,11 @@ public:
 	bool empty() const {
 		return w_pos == r_pos;
 	}
+
+	void clear() {
+		r_pos = w_pos = 0;
+	}
+
 private:
 	uint8_t buffer[Size] = {0};
 	uint8_t r_pos = 0;
@@ -62,6 +67,7 @@ namespace uart {
 	uint8_t recv();
 
 	bool ready();
+	void clear();
 
 	bool send(uint8_t c);
 	bool send(uint8_t c1, uint8_t c2);

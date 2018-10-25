@@ -93,13 +93,7 @@ ISR(TIMER1_COMPA_vect) {
 
 static inline void main_body() {
 	usbPoll();
-	bool keyIntr = false;
-	// Read (slow) uart data
-	while (!keyIntr && uart::poll()) {
-		// Parse UART data
-		keyIntr = keyboard_handler.poll_event();
-	}
-	if (keyIntr) {
+	if (keyboard_handler.poll_event()) {
 		// Wait for USB ready before handling next key
 		while(!usbInterruptIsReady() && !uart::full()) {
 			usbPoll();
@@ -122,6 +116,8 @@ static void usbReset() {
 	usbDeviceConnect();
 	sei();
 }
+
+//void main(void) __attribute__((noreturn));
 
 int main()
 {
