@@ -39,13 +39,6 @@ namespace keyboard {
 		capslock = 0x08,
 	};
 
-	struct boot_report_t {
-		uint8_t modMask = 0;
-		uint8_t reserved = 0;
-		KeyUsage keys[6] = {KeyUsage::RESERVED};
-	};
-	static_assert(sizeof(boot_report_t) == 8, "Invalid report size");
-
 	enum class report_type : uint8_t {
 		boot = 0,
 		key = 1,
@@ -54,29 +47,48 @@ namespace keyboard {
 		none = 0xff
 	};
 
-	struct report_t {
-		report_type report_id = report_type::key;
-		union {
-			boot_report_t boot_report;
-			unsigned char boot_report_data[sizeof(boot_report_t)];
-		};
-
+	struct boot_report_t {
+		uint8_t modMask = 0;
+		uint8_t reserved = 0;
+		KeyUsage keys[6] = {KeyUsage::RESERVED};
 	};
+	static_assert(sizeof(boot_report_t) == 8, "Invalid report size");
+
+	struct key_report_t {
+		report_type report_id = report_type::key;
+		uint8_t modMask = 0;
+		KeyUsage keys[6] = {KeyUsage::RESERVED};
+	};
+	static_assert(sizeof(key_report_t) == 8, "Invalid report size");
+
+	struct led_report_t {
+		report_type report_id = report_type::key;
+		uint8_t ledmask = 0;
+	};
+	static_assert(sizeof(led_report_t) == 2, "Invalid report size");
 
 	struct media_report_t {
 		report_type report_id = report_type::media;
 		uint8_t keyMask = 0;
 	};
+	static_assert(sizeof(media_report_t) == 2, "Invalid report size");
 
 	struct system_report_t {
 		report_type report_id = report_type::system;
 		uint8_t keyMask = 0;
 	};
+	static_assert(sizeof(system_report_t) == 2, "Invalid report size");
 
 	class keyboard {
 		union {
-			report_t report;
-			unsigned char report_data[sizeof(report_t)];
+			union {
+				boot_report_t boot_report;
+				unsigned char boot_report_data[sizeof(boot_report_t)];
+			};
+			union {
+				key_report_t key_report;
+				unsigned char key_report_data[sizeof(key_report_t)];
+			};
 		};
 		union {
 			media_report_t media_report;
@@ -108,7 +120,7 @@ namespace keyboard {
 
 		static constexpr uint8_t keymapSize = 128;
 		KeyUsage m_keyMap[keymapSize];
-		KeyUsage m_curOverride;
+		uint8_t m_curOverride;
 		uint8_t m_macroBuffer[64];
 		uint8_t m_macroSize;
 		uint8_t m_ledState;
@@ -121,7 +133,7 @@ namespace keyboard {
 		void handle_morsecode(uint8_t key);
 
 		template<uint16_t ms>
-		void beep() {
+		void beep() const {
 			command(::keyboard::command::bell_on);
 			_delay_ms(ms);
 			command(::keyboard::command::bell_off);
@@ -136,16 +148,24 @@ namespace keyboard {
 			command(::keyboard::command::led_status, m_ledState);
 		}
 
+		void command(::keyboard::command command) const {
+			uart::send(as_byte(command));
+		}
+		void command(::keyboard::command command, uint8_t payload) const {
+			uart::send(as_byte(command), payload);
+		}
+
 	public:
 		static constexpr uint8_t protocol_report = 0;
 		static constexpr uint8_t protocol_boot = 1;
 
 		keyboard() noexcept :
 			m_mode(mode::normal), m_keystate(keystate::clear),
-			m_keyMap{KeyUsage::RESERVED}, m_curOverride(KeyUsage::RESERVED),
+			m_keyMap{KeyUsage::RESERVED}, m_curOverride(0),
 			m_macroBuffer{0}, m_macroSize(0),
 			m_ledState(0), m_protocol(protocol_report)
 		{
+			key_report.report_id = report_type::key;
 		}
 
 		void init() {
@@ -158,16 +178,12 @@ namespace keyboard {
 		}
 
 		void set_protocol(uint8_t protocol) {
-			if (protocol == protocol_report || protocol == protocol_boot) {
+			if (protocol == protocol_report) {
 				m_protocol = protocol;
+				key_report = key_report_t{report_type::key, 0, {KeyUsage::RESERVED}};
+			} else if (protocol == protocol_boot) {
+				boot_report = {0, 0, {KeyUsage::RESERVED}};
 			}
-		}
-
-		void command(::keyboard::command command) {
-			uart::send(as_byte(command));
-		}
-		void command(::keyboard::command command, uint8_t payload) {
-			uart::send(as_byte(command), payload);
 		}
 
 		report_type poll_event();
@@ -176,26 +192,39 @@ namespace keyboard {
 
 		void send_report_intr(report_type type) const {
 			if (m_protocol == protocol_boot && (type == report_type::boot || type == report_type::key)) {
-				usbSetInterrupt(const_cast<unsigned char *>(report.boot_report_data), sizeof(report.boot_report_data));
+				usbSetInterrupt(const_cast<unsigned char *>(boot_report_data), sizeof(boot_report_data));
 			} else {
-				usbSetInterrupt(const_cast<unsigned char *>(report_data), sizeof(report_data));
-			}
-		}
-
-		uint8_t set_report_ptr(unsigned char* *ptr, uint8_t type, report_type id) const {
-			if (type != 1) {
-				return 0;
-			}
-			if (m_protocol == protocol_boot) {
-				*ptr = const_cast<unsigned char*>(report.boot_report_data);
-				return sizeof(report.boot_report_data);
-			} else {
-				switch(id) {
+				switch(type) {
 					default:
 					case report_type::key:
 						// Keyboard
-						*ptr = const_cast<unsigned char*>(report_data);
-						return sizeof(report_data);
+						usbSetInterrupt(const_cast<unsigned char *>(key_report_data), sizeof(key_report_data));
+						break;
+					case report_type::media:
+						// Media
+						usbSetInterrupt(const_cast<unsigned char *>(media_report_data), sizeof(media_report_data));
+						break;
+					case report_type::system:
+						usbSetInterrupt(const_cast<unsigned char *>(system_report_data), sizeof(system_report_data));
+						break;
+				}
+			}
+		}
+
+		uint8_t set_report_ptr(unsigned char* *ptr, uint8_t main_type, report_type type) const {
+			if (main_type != 1) {
+				//return 0;
+			}
+			if (m_protocol == protocol_boot) {
+				*ptr = const_cast<unsigned char*>(boot_report_data);
+				return sizeof(boot_report_data);
+			} else {
+				switch(type) {
+					default:
+					case report_type::key:
+						// Keyboard
+						*ptr = const_cast<unsigned char*>(key_report_data);
+						return sizeof(key_report_data);
 					case report_type::media:
 						// Media
 						*ptr = const_cast<unsigned char*>(media_report_data);
@@ -205,7 +234,6 @@ namespace keyboard {
 						*ptr = const_cast<unsigned char*>(system_report_data);
 						return sizeof(system_report_data);
 				}
-
 			}
 		}
 	};

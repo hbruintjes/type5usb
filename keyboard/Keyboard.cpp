@@ -83,8 +83,8 @@ namespace keyboard {
 		// Handle keyboard response codes
 		if (c == response::layout) {
 			m_mode = mode::layout;
-			return report_type::none;
 		} else if (c == response::reset) {
+			return report_type::none;
 			m_mode = mode::reset;
 			return report_type::none;
 		}
@@ -96,7 +96,7 @@ namespace keyboard {
 					m_mode = mode::normal;
 				} else if (c == response::reset_fail1) {
 					for (size_t i = 0; i < 6; i++) {
-						report.boot_report.keys[i] = KeyUsage::ERROR_POST_FAIL;
+						key_report.keys[i] = KeyUsage::ERROR_POST_FAIL;
 					}
 				} else if (c == response::reset_fail2) {
 					m_mode = mode::error;
@@ -106,9 +106,9 @@ namespace keyboard {
 				// Handle keyboard response codes
 				if (c == response::idle) {
 					if (m_keystate != keystate::clear) {
-						report.boot_report.modMask = 0;
+						key_report.modMask = 0;
 						for (size_t i = 0; i < 6; i++) {
-							report.boot_report.keys[i] = KeyUsage::RESERVED;
+							key_report.keys[i] = KeyUsage::RESERVED;
 						}
 						if (m_keystate == keystate::rollover) {
 							command(::keyboard::command::click_off);
@@ -158,7 +158,7 @@ namespace keyboard {
 					toggle_led(::keyboard::led::compose);
 					m_mode = mode::normal;
 				} else if (c < response::idle) {
-					m_curOverride = m_keyMap[c];
+					m_curOverride = c;
 					m_mode = mode::keyswap2;
 				}
 				break;
@@ -167,8 +167,10 @@ namespace keyboard {
 					toggle_led(::keyboard::led::compose);
 					m_mode = mode::normal;
 					if (c != ::keyboard::keys::fn) {
-						m_keyMap[c] = m_curOverride;
-						eeprom_update_byte(reinterpret_cast<uint8_t*>(c), static_cast<uint8_t>(m_curOverride));
+						// Read original code from flash
+						auto keyUsage = static_cast<KeyUsage>(pgm_read_word_near(keymap + m_curOverride));
+						m_keyMap[c] = keyUsage;
+						eeprom_update_byte(reinterpret_cast<uint8_t*>(c), static_cast<uint8_t>(keyUsage));
 						beep<50>();
 					}
 				}
@@ -202,31 +204,31 @@ namespace keyboard {
 		{
 			auto bit = as_byte(key) - as_byte(KeyUsage::LEFTCTRL);
 			if (!is_break) {
-				report.boot_report.modMask |= 1 << bit;
+				key_report.modMask |= 1 << bit;
 			} else {
-				report.boot_report.modMask &= ~(1 << bit);
+				key_report.modMask &= ~(1 << bit);
 			}
 		} else if (m_keystate != keystate::rollover) {
 			if (!is_break) {
 				size_t i;
 				for (i = 0; i < 6; i++) {
-					if (report.boot_report.keys[i] == KeyUsage::RESERVED) {
-						report.boot_report.keys[i] = key;
+					if (key_report.keys[i] == KeyUsage::RESERVED) {
+						key_report.keys[i] = key;
 						break;
 					}
 				}
 				if (i == 6) {
 					m_keystate = keystate::rollover;
 					for (i = 0; i < 6; i++) {
-						report.boot_report.keys[i] = KeyUsage::ERROR_ROLLOVER;
+						key_report.keys[i] = KeyUsage::ERROR_ROLLOVER;
 					}
 					command(::keyboard::command::click_on);
 				}
 			} else {
 				command(::keyboard::command::click_off);
 				for (size_t i = 0; i < 6; i++) {
-					if (report.boot_report.keys[i] == key) {
-						report.boot_report.keys[i] = KeyUsage::RESERVED;
+					if (key_report.keys[i] == key) {
+						key_report.keys[i] = KeyUsage::RESERVED;
 						break;
 					}
 				}
@@ -273,21 +275,19 @@ namespace keyboard {
 		code <<= 3;
 		wdt_disable();
 		while(len > 0) {
-			command(::keyboard::command::bell_on);
 			if (code & 0x80) {
 				// long
-				_delay_ms(225);
+				beep<150>();
 			} else {
 				// short
-				_delay_ms(75);
+				beep<75>();
 			}
-			command(::keyboard::command::bell_off);
 			_delay_ms(75);
 
 			code <<= 1;
 			len--;
 		}
-		beep<150>();
+		_delay_ms(150);
 		wdt_enable(WDTO_1S);
 	}
 

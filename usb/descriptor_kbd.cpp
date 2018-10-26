@@ -18,10 +18,10 @@ extern "C" PROGMEM const char usbDescriptorHidReport[USB_CFG_HID_REPORT_DESCRIPT
 		LOGICAL_MIN(0),
 		LOGICAL_MAX(1),
 		INPUT(MainFlag::Data | MainFlag::Variable | MainFlag::Absolute),
-		// Reserved
+		/*// Reserved
 		REPORT_SIZE(1),
 		REPORT_COUNT(8),
-		INPUT(MainFlag::Constant | MainFlag::Variable | MainFlag::Absolute),
+		INPUT(MainFlag::Constant | MainFlag::Variable | MainFlag::Absolute),*/
 		// Status LEDs
 		REPORT_SIZE(1),
 		REPORT_COUNT(5),

@@ -22,14 +22,15 @@ extern "C" {
 /* repeat rate for keyboards, never used for mice */
 static uchar idleRate[3] = {0};
 static uchar idleTime[3] = {0};
-static uchar report_id = 0;
+static keyboard::report_type type = keyboard::report_type::none;
 static keyboard::keyboard keyboard_handler;
 
 /* ------------------------------------------------------------------------- */
 uchar usbFunctionWrite(uchar *data, uchar len) {
 	/* Only one report type to consider, which is one byte exactly */
-	if (report_id == 1 && len == 1) {
-		keyboard_handler.set_led_report(data[0]);
+	if (len == sizeof(keyboard::led_report_t) &&
+	  static_cast<keyboard::report_type>(data[0]) == keyboard::report_type::key) {
+		keyboard_handler.set_led_report(data[1]);
 	}
 
 	// Done
@@ -42,22 +43,21 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
 	if ((rq->bmRequestType & USBRQ_TYPE_MASK) == USBRQ_TYPE_CLASS) {    /* class request type */
 		/* wValue: ReportType (highbyte), ReportID (lowbyte) */
 		/* we only have one report type, so don't look at wValue */
-		auto report_type = static_cast<const keyboard::report_type>(rq->wValue.bytes[0]);
+		type = static_cast<const keyboard::report_type>(rq->wValue.bytes[0]);
 		if (rq->bRequest == USBRQ_HID_GET_REPORT) {
-			return keyboard_handler.set_report_ptr(&usbMsgPtr, rq->wValue.bytes[1], report_type);
+			return keyboard_handler.set_report_ptr(&usbMsgPtr, rq->wValue.bytes[1], type);
 		} else if (rq->bRequest == USBRQ_HID_SET_REPORT) {
 			// Let usbFunctionWrite take care of things
-			::report_id = report_id;
 			return USB_NO_MSG;
 		} else if (rq->bRequest == USBRQ_HID_GET_IDLE) {
-			if (report_type == keyboard::report_type::boot) {
+			if (type == keyboard::report_type::boot) {
 				usbMsgPtr = &idleRate[0];
 			} else {
 				usbMsgPtr = &idleRate[rq->wValue.bytes[0] - 1];
 			}
 			return 1;
 		} else if (rq->bRequest == USBRQ_HID_SET_IDLE) {
-			if (report_type == keyboard::report_type::boot) {
+			if (type == keyboard::report_type::boot) {
 				idleTime[0] = idleRate[0] = rq->wValue.bytes[1];
 			} else {
 				idleRate[rq->wValue.bytes[0] - 1] =
@@ -101,13 +101,14 @@ ISR(TIMER1_COMPA_vect) {
 			if (usbInterruptIsReady()) {
 				// Disable interrupt until report is sent
 				TIMSK1 = 0;
-				keyboard_handler.send_report_intr(static_cast<keyboard::report_type>(i));
+				//keyboard_handler.send_report_intr(static_cast<keyboard::report_type>(i));
 				idleTime[i] = idleRate[i];
 				TIMSK1 = _BV(OCIE1A);
 			}
 		}
 	}
 }
+
 
 static inline void main_body() {
 	usbPoll();
