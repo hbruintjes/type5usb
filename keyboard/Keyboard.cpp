@@ -57,22 +57,19 @@ namespace keyboard {
 	void keyboard::load_overrides() {
 		if (eeprom_read_byte((uint8_t*)(keymapSize)) == 1) {
 			// Seems OK
-			eeprom_read_block(m_keyOverride, (uint8_t*)(0), keymapSize);
+			eeprom_read_block(m_keyMap, reinterpret_cast<uint8_t*>(0), keymapSize);
+		} else {
+			clear_overrides();
 		}
 	}
 
 	void keyboard::clear_overrides() {
 		eeprom_update_byte((uint8_t*)(keymapSize), 0);
-		for(uint8_t i = 0; i < keymapSize; i++) {
-			m_keyOverride[i] = 0;
-			eeprom_update_byte((uint8_t*)(i), 0);
+		for (uint8_t i = 0; i < keymapSize; i++) {
+			uint8_t key = pgm_read_word_near(keymap + i);
+			m_keyMap[i] = static_cast<KeyUsage>(key);
 		}
-		eeprom_update_byte((uint8_t*)(keymapSize), 1);
-	}
-
-	void keyboard::save_overrides() const {
-		eeprom_update_byte((uint8_t*)(keymapSize), 0);
-		eeprom_update_block(m_keyOverride, (uint8_t*)(0), keymapSize);
+		eeprom_update_block(m_keyMap, reinterpret_cast<uint8_t*>(0), keymapSize);
 		eeprom_update_byte((uint8_t*)(keymapSize), 1);
 	}
 
@@ -160,7 +157,7 @@ namespace keyboard {
 					toggle_led(::keyboard::led::compose);
 					m_mode = mode::normal;
 				} else if (c < response::idle) {
-					m_curOverride = c;
+					m_curOverride = m_keyMap[c];
 					m_mode = mode::keyswap2;
 				}
 				break;
@@ -169,8 +166,8 @@ namespace keyboard {
 					toggle_led(::keyboard::led::compose);
 					m_mode = mode::normal;
 					if (c != ::keyboard::keys::fn) {
-						m_keyOverride[c] = m_curOverride;
-						eeprom_update_byte((uint8_t*)(c), m_curOverride);
+						m_keyMap[c] = m_curOverride;
+						eeprom_update_byte(reinterpret_cast<uint8_t*>(c), static_cast<uint8_t>(m_curOverride));
 						beep<50>();
 					}
 				}
@@ -181,6 +178,8 @@ namespace keyboard {
 				// c is layout
 				m_mode = mode::normal;
 				break;
+			case mode::macro_record:
+				break;
 		}
 		return false;
 	}
@@ -189,10 +188,7 @@ namespace keyboard {
 		bool is_break = (c & 0x80) != 0;
 		c &= 0x7F;
 
-		if (m_keyOverride[c] != 0) {
-			c = m_keyOverride[c];
-		}
-		auto key = static_cast<KeyUsage>(pgm_read_byte_near(keymap + c));
+		auto key = m_keyMap[c];
 		if (key == KeyUsage::RESERVED) {
 			return false;
 		}

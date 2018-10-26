@@ -72,15 +72,14 @@ namespace keyboard {
 		keystate m_keystate;
 
 		static constexpr uint8_t keymapSize = 128;
-		uint8_t m_keyOverride[keymapSize];
-		uint8_t m_curOverride;
+		KeyUsage m_keyMap[keymapSize];
+		KeyUsage m_curOverride;
 		uint8_t m_macroBuffer[64];
 		uint8_t m_macroSize;
 		uint8_t m_ledState;
 		uint8_t m_protocol;
 
 		void load_overrides();
-		void save_overrides() const;
 		void clear_overrides();
 		bool handle_keycode(uint8_t key);
 		bool handle_keycode_fn(uint8_t key);
@@ -108,7 +107,7 @@ namespace keyboard {
 
 		keyboard() noexcept :
 			report({0}), m_mode(mode::normal), m_keystate(keystate::clear),
-			m_keyOverride{0}, m_curOverride(0),
+			m_keyMap{KeyUsage::RESERVED}, m_curOverride(KeyUsage::RESERVED),
 			m_macroBuffer{0}, m_macroSize(0),
 			m_ledState(0), m_protocol(protocol_report)
 		{
