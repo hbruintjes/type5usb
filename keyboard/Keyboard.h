@@ -40,14 +40,22 @@ namespace keyboard {
 	};
 
 	struct boot_report_t {
-		uint8_t modMask;
-		uint8_t reserved;
-		KeyUsage keys[6];
+		uint8_t modMask = 0;
+		uint8_t reserved = 0;
+		KeyUsage keys[6] = {KeyUsage::RESERVED};
 	};
 	static_assert(sizeof(boot_report_t) == 8, "Invalid report size");
 
+	enum class report_type : uint8_t {
+		boot = 0,
+		key = 1,
+		media = 2,
+		system = 3,
+		none = 0xff
+	};
+
 	struct report_t {
-		uint8_t report_id = 1;
+		report_type report_id = report_type::key;
 		union {
 			boot_report_t boot_report;
 			unsigned char boot_report_data[sizeof(boot_report_t)];
@@ -55,10 +63,28 @@ namespace keyboard {
 
 	};
 
+	struct media_report_t {
+		report_type report_id = report_type::media;
+		uint8_t keyMask = 0;
+	};
+
+	struct system_report_t {
+		report_type report_id = report_type::system;
+		uint8_t keyMask = 0;
+	};
+
 	class keyboard {
 		union {
 			report_t report;
 			unsigned char report_data[sizeof(report_t)];
+		};
+		union {
+			media_report_t media_report;
+			unsigned char media_report_data[sizeof(media_report_t)];
+		};
+		union {
+			system_report_t system_report;
+			unsigned char system_report_data[sizeof(system_report_t)];
 		};
 		enum class mode : uint8_t {
 			reset,
@@ -90,8 +116,8 @@ namespace keyboard {
 
 		void load_overrides();
 		void clear_overrides();
-		bool handle_keycode(uint8_t key);
-		bool handle_keycode_fn(uint8_t key);
+		report_type handle_keycode(uint8_t key);
+		report_type handle_keycode_fn(uint8_t key);
 		void handle_morsecode(uint8_t key);
 
 		template<uint16_t ms>
@@ -115,7 +141,7 @@ namespace keyboard {
 		static constexpr uint8_t protocol_boot = 1;
 
 		keyboard() noexcept :
-			report({0}), m_mode(mode::normal), m_keystate(keystate::clear),
+			m_mode(mode::normal), m_keystate(keystate::clear),
 			m_keyMap{KeyUsage::RESERVED}, m_curOverride(KeyUsage::RESERVED),
 			m_macroBuffer{0}, m_macroSize(0),
 			m_ledState(0), m_protocol(protocol_report)
@@ -144,24 +170,42 @@ namespace keyboard {
 			uart::send(as_byte(command), payload);
 		}
 
-		bool poll_event();
+		report_type poll_event();
 
 		void set_led_report(unsigned char data);
 
-		void send_report_intr() const {
-			if (m_protocol == protocol_boot) {
+		void send_report_intr(report_type type) const {
+			if (m_protocol == protocol_boot && (type == report_type::boot || type == report_type::key)) {
 				usbSetInterrupt(const_cast<unsigned char *>(report.boot_report_data), sizeof(report.boot_report_data));
 			} else {
 				usbSetInterrupt(const_cast<unsigned char *>(report_data), sizeof(report_data));
 			}
 		}
 
-		uint8_t set_report_ptr(unsigned char* *ptr) const {
-			*ptr = const_cast<unsigned char*>(report_data);
+		uint8_t set_report_ptr(unsigned char* *ptr, uint8_t type, report_type id) const {
+			if (type != 1) {
+				return 0;
+			}
 			if (m_protocol == protocol_boot) {
-				return 8; // Fixed report size and layout
+				*ptr = const_cast<unsigned char*>(report.boot_report_data);
+				return sizeof(report.boot_report_data);
 			} else {
-				return sizeof(report_data);
+				switch(id) {
+					default:
+					case report_type::key:
+						// Keyboard
+						*ptr = const_cast<unsigned char*>(report_data);
+						return sizeof(report_data);
+					case report_type::media:
+						// Media
+						*ptr = const_cast<unsigned char*>(media_report_data);
+						return sizeof(media_report_data);
+					case report_type::system:
+						// System
+						*ptr = const_cast<unsigned char*>(system_report_data);
+						return sizeof(system_report_data);
+				}
+
 			}
 		}
 	};

@@ -74,19 +74,19 @@ namespace keyboard {
 		eeprom_update_byte(reinterpret_cast<uint8_t*>(keymapSize), keymap_version);
 	}
 
-	bool keyboard::poll_event() {
+	report_type keyboard::poll_event() {
 		if (!uart::poll()) {
-			return false;
+			return report_type::none;
 		}
 		uint8_t c = uart::recv();
 
 		// Handle keyboard response codes
 		if (c == response::layout) {
 			m_mode = mode::layout;
-			return false;
+			return report_type::none;
 		} else if (c == response::reset) {
 			m_mode = mode::reset;
-			return false;
+			return report_type::none;
 		}
 
 		switch (m_mode) {
@@ -114,10 +114,10 @@ namespace keyboard {
 							command(::keyboard::command::click_off);
 						}
 						m_keystate = keystate::clear;
-						return true;
+						return report_type::key;
 					} else {
 						// Avoid reporting empty too often
-						return false;
+						return report_type::none;
 					}
 				}
 
@@ -182,16 +182,16 @@ namespace keyboard {
 			case mode::macro_record:
 				break;
 		}
-		return false;
+		return report_type::none;
 	}
 
-	bool keyboard::handle_keycode(uint8_t c) {
+	report_type keyboard::handle_keycode(uint8_t c) {
 		bool is_break = (c & 0x80) != 0;
 		c &= 0x7F;
 
 		auto key = m_keyMap[c];
 		if (key == KeyUsage::RESERVED) {
-			return false;
+			return report_type::none;
 		}
 
 		if (!is_break && m_keystate != keystate::rollover) {
@@ -234,13 +234,13 @@ namespace keyboard {
 
 		}
 
-		return true;
+		return report_type::key;
 	}
 
-	bool keyboard::handle_keycode_fn(uint8_t c) {
+	report_type keyboard::handle_keycode_fn(uint8_t c) {
 		if ((c & 0x80) != 0) {
 			//TODO: check if shifted key, return true if so
-			return false;
+			return report_type::none;
 		}
 		if (c == ::keyboard::keys::help) {
 			m_mode = mode::morse;
@@ -253,7 +253,7 @@ namespace keyboard {
 			beep<150>();
 		}
 
-		return false;
+		return report_type::none;
 	}
 	void keyboard::handle_morsecode(uint8_t c) {
 		if ((c & 0x80) != 0) {
