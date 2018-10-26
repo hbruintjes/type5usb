@@ -39,12 +39,21 @@ namespace keyboard {
 		capslock = 0x08,
 	};
 
-	struct report_t {
+	struct boot_report_t {
 		uint8_t modMask;
 		uint8_t reserved;
 		KeyUsage keys[6];
 	};
-	static_assert(sizeof(report_t) == 8, "Invalid report size");
+	static_assert(sizeof(boot_report_t) == 8, "Invalid report size");
+
+	struct report_t {
+		uint8_t report_id = 1;
+		union {
+			boot_report_t boot_report;
+			unsigned char boot_report_data[sizeof(boot_report_t)];
+		};
+
+	};
 
 	class keyboard {
 		union {
@@ -140,7 +149,11 @@ namespace keyboard {
 		void set_led_report(unsigned char data);
 
 		void send_report_intr() const {
-			usbSetInterrupt(const_cast<unsigned char*>(report_data), sizeof(report_data));
+			if (m_protocol == protocol_boot) {
+				usbSetInterrupt(const_cast<unsigned char *>(report.boot_report_data), sizeof(report.boot_report_data));
+			} else {
+				usbSetInterrupt(const_cast<unsigned char *>(report_data), sizeof(report_data));
+			}
 		}
 
 		uint8_t set_report_ptr(unsigned char* *ptr) const {

@@ -54,8 +54,9 @@ namespace morse {
 }
 
 namespace keyboard {
+	constexpr uint8_t keymap_version = 2;
 	void keyboard::load_overrides() {
-		if (eeprom_read_byte((uint8_t*)(keymapSize)) == 1) {
+		if (eeprom_read_byte(reinterpret_cast<uint8_t*>(keymapSize)) == keymap_version) {
 			// Seems OK
 			eeprom_read_block(m_keyMap, reinterpret_cast<uint8_t*>(0), keymapSize);
 		} else {
@@ -64,13 +65,13 @@ namespace keyboard {
 	}
 
 	void keyboard::clear_overrides() {
-		eeprom_update_byte((uint8_t*)(keymapSize), 0);
+		eeprom_update_byte(reinterpret_cast<uint8_t*>(keymapSize), ~keymap_version);
 		for (uint8_t i = 0; i < keymapSize; i++) {
 			uint8_t key = pgm_read_word_near(keymap + i);
 			m_keyMap[i] = static_cast<KeyUsage>(key);
 		}
 		eeprom_update_block(m_keyMap, reinterpret_cast<uint8_t*>(0), keymapSize);
-		eeprom_update_byte((uint8_t*)(keymapSize), 1);
+		eeprom_update_byte(reinterpret_cast<uint8_t*>(keymapSize), keymap_version);
 	}
 
 	bool keyboard::poll_event() {
@@ -95,7 +96,7 @@ namespace keyboard {
 					m_mode = mode::normal;
 				} else if (c == response::reset_fail1) {
 					for (size_t i = 0; i < 6; i++) {
-						report.keys[i] = KeyUsage::ERROR_POST_FAIL;
+						report.boot_report.keys[i] = KeyUsage::ERROR_POST_FAIL;
 					}
 				} else if (c == response::reset_fail2) {
 					m_mode = mode::error;
@@ -105,9 +106,9 @@ namespace keyboard {
 				// Handle keyboard response codes
 				if (c == response::idle) {
 					if (m_keystate != keystate::clear) {
-						report.modMask = 0;
+						report.boot_report.modMask = 0;
 						for (size_t i = 0; i < 6; i++) {
-							report.keys[i] = KeyUsage::RESERVED;
+							report.boot_report.keys[i] = KeyUsage::RESERVED;
 						}
 						if (m_keystate == keystate::rollover) {
 							command(::keyboard::command::click_off);
@@ -201,31 +202,31 @@ namespace keyboard {
 		{
 			auto bit = as_byte(key) - as_byte(KeyUsage::LEFTCTRL);
 			if (!is_break) {
-				report.modMask |= 1 << bit;
+				report.boot_report.modMask |= 1 << bit;
 			} else {
-				report.modMask &= ~(1 << bit);
+				report.boot_report.modMask &= ~(1 << bit);
 			}
 		} else if (m_keystate != keystate::rollover) {
 			if (!is_break) {
 				size_t i;
 				for (i = 0; i < 6; i++) {
-					if (report.keys[i] == KeyUsage::RESERVED) {
-						report.keys[i] = key;
+					if (report.boot_report.keys[i] == KeyUsage::RESERVED) {
+						report.boot_report.keys[i] = key;
 						break;
 					}
 				}
 				if (i == 6) {
 					m_keystate = keystate::rollover;
 					for (i = 0; i < 6; i++) {
-						report.keys[i] = KeyUsage::ERROR_ROLLOVER;
+						report.boot_report.keys[i] = KeyUsage::ERROR_ROLLOVER;
 					}
 					command(::keyboard::command::click_on);
 				}
 			} else {
 				command(::keyboard::command::click_off);
 				for (size_t i = 0; i < 6; i++) {
-					if (report.keys[i] == key) {
-						report.keys[i] = KeyUsage::RESERVED;
+					if (report.boot_report.keys[i] == key) {
+						report.boot_report.keys[i] = KeyUsage::RESERVED;
 						break;
 					}
 				}

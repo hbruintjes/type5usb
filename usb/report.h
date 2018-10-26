@@ -91,6 +91,8 @@ namespace UsagePage {
 	constexpr uint8_t LEDs = 0x08;
 	constexpr uint8_t Button = 0x09;
 	constexpr uint8_t Ordinal = 0x0A;
+	constexpr uint8_t Telephony = 0x0B;
+	constexpr uint8_t Consumer = 0x0C;
 };
 
 namespace GenericDesktop {
@@ -109,7 +111,19 @@ namespace GenericDesktop {
 	constexpr uint8_t Z = 0x32;
 
 	constexpr uint8_t Wheel = 0x38;
+
+	constexpr uint8_t SystemControl = 0x80;
+	constexpr uint8_t SystemPowerDown = 0x81;
+	constexpr uint8_t SystemSleep = 0x82;
 };
+
+namespace Consumer {
+	constexpr uint8_t Undefined = 0x00;
+	constexpr uint8_t Control = 0x01;
+	constexpr uint8_t Mute = 0xE2;
+	constexpr uint8_t VolumeInc = 0xE9;
+	constexpr uint8_t VolumeDec = 0xEA;
+}
 
 enum class KeyUsage : uint8_t {
 	RESERVED = 0x00,
