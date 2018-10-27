@@ -103,6 +103,7 @@ namespace keyboard {
 				}
 				break;
 			case mode::normal:
+			case mode::macro_record:
 				// Handle keyboard response codes
 				if (c == response::idle) {
 					if (m_keystate != keystate::clear) {
@@ -125,8 +126,13 @@ namespace keyboard {
 				switch (m_keystate) {
 					case keystate::clear:
 						if (c == ::keyboard::keys::fn) {
-							m_mode = mode::fn;
-							toggle_led(::keyboard::led::compose);
+							if (m_mode == mode::macro_record) {
+								command(::keyboard::command::click_off);
+								m_mode = mode::normal;
+							} else {
+								m_mode = mode::fn;
+								toggle_led(::keyboard::led::compose);
+							}
 							break;
 						}
 						// Fall-through
@@ -181,14 +187,89 @@ namespace keyboard {
 				// c is layout
 				m_mode = mode::normal;
 				break;
-			case mode::macro_record:
-				break;
 		}
 		return report_type::none;
 	}
 
+	report_type keyboard::press(KeyUsage key) {
+		if (key >= KeyUsage::LEFTCTRL && key <= KeyUsage::RIGHTGUI)
+		{
+			auto bit = as_byte(key) - as_byte(KeyUsage::LEFTCTRL);
+			key_report.modMask |= 1 << bit;
+			m_keystate = keystate::in_use;
+			return report_type::key;
+		} else if (key >= KeyUsage::MUTE && key <= KeyUsage::VOLUME_DOWN) {
+			auto bit = as_byte(key) - as_byte(KeyUsage::MUTE);
+			media_report.keyMask |= 1 << bit;
+			return report_type::media;
+		} else if (key == KeyUsage::POWER) {
+			auto bit = as_byte(key) - as_byte(KeyUsage::POWER);
+			system_report.keyMask |= 1 << bit;
+			return report_type::system;
+		}
+		if (key >= KeyUsage::RESERVED && key <= KeyUsage::VOLUME_DOWN &&
+		  m_keystate != keystate::rollover) {
+			size_t i;
+			for (i = 0; i < 6; i++) {
+				if (key_report.keys[i] == KeyUsage::RESERVED) {
+					key_report.keys[i] = key;
+					break;
+				}
+			}
+			if (i == 6) {
+				m_keystate = keystate::rollover;
+				for (i = 0; i < 6; i++) {
+					key_report.keys[i] = KeyUsage::ERROR_ROLLOVER;
+				}
+				command(::keyboard::command::click_on);
+			} else {
+				m_keystate = keystate::in_use;
+			}
+			return report_type::key;
+		}
+		return report_type::none;
+	}
+
+	report_type keyboard::release(KeyUsage key) {
+		if (key >= KeyUsage::LEFTCTRL && key <= KeyUsage::RIGHTGUI) {
+			auto bit = as_byte(key) - as_byte(KeyUsage::LEFTCTRL);
+			key_report.modMask &= ~(1 << bit);
+		} else if (key >= KeyUsage::MUTE && key <= KeyUsage::VOLUME_DOWN) {
+			auto bit = as_byte(key) - as_byte(KeyUsage::MUTE);
+			media_report.keyMask &= ~(1 << bit);
+			return report_type::media;
+		} else if (key == KeyUsage::POWER) {
+			auto bit = as_byte(key) - as_byte(KeyUsage::POWER);
+			media_report.keyMask &= ~(1 << bit);
+			return report_type::system;
+		} else if (key >= KeyUsage::RESERVED && key <= KeyUsage::VOLUME_DOWN &&
+		  m_keystate != keystate::rollover) {
+			for (size_t i = 0; i < 6; i++) {
+				if (key_report.keys[i] == key) {
+					key_report.keys[i] = KeyUsage::RESERVED;
+					break;
+				}
+			}
+		}
+
+		if (m_keystate != keystate::clear) {
+			bool clear = true;
+			for (size_t i = 0; i < 6; i++) {
+				if (key_report.keys[i] != KeyUsage::RESERVED) {
+					clear = false;
+					break;
+				}
+			}
+			if (clear && key_report.modMask == 0) {
+				m_keystate = keystate::clear;
+			}
+		}
+
+		return report_type::key;
+	}
+
 	report_type keyboard::handle_keycode(uint8_t c) {
-		bool is_break = (c & 0x80) != 0;
+		uint8_t is_break = (c & static_cast<uint8_t>(0x80));
 		c &= 0x7F;
 
 		auto key = m_keyMap[c];
@@ -196,63 +277,20 @@ namespace keyboard {
 			return report_type::none;
 		}
 
-		if (!is_break && m_keystate != keystate::rollover) {
-			m_keystate = keystate::in_use;
+		if (m_mode == mode::macro_record) {
+			m_macroBuffer[m_macroSize] = (c | is_break);
+			m_macroSize++;
+			if (m_macroSize == macroSize) {
+				beep<150>();
+				m_mode = mode::normal;
+			}
 		}
 
-		if (key >= KeyUsage::LEFTCTRL && key <= KeyUsage::RIGHTGUI)
-		{
-			auto bit = as_byte(key) - as_byte(KeyUsage::LEFTCTRL);
-			if (!is_break) {
-				key_report.modMask |= 1 << bit;
-			} else {
-				key_report.modMask &= ~(1 << bit);
-			}
-		} else if (key >= KeyUsage::MUTE && key <= KeyUsage::VOLUME_DOWN) {
-			auto bit = as_byte(key) - as_byte(KeyUsage::MUTE);
-			if (!is_break) {
-				media_report.keyMask |= 1 << bit;
-			} else {
-				media_report.keyMask &= ~(1 << bit);
-			}
-			return report_type::media;
-		} else if (key == KeyUsage::POWER) {
-			auto bit = as_byte(key) - as_byte(KeyUsage::POWER);
-			if (!is_break) {
-				system_report.keyMask |= 1 << bit;
-			} else {
-				media_report.keyMask &= ~(1 << bit);
-			}
-			return report_type::system;
-		} else if (m_keystate != keystate::rollover) {
-			if (!is_break) {
-				size_t i;
-				for (i = 0; i < 6; i++) {
-					if (key_report.keys[i] == KeyUsage::RESERVED) {
-						key_report.keys[i] = key;
-						break;
-					}
-				}
-				if (i == 6) {
-					m_keystate = keystate::rollover;
-					for (i = 0; i < 6; i++) {
-						key_report.keys[i] = KeyUsage::ERROR_ROLLOVER;
-					}
-					command(::keyboard::command::click_on);
-				}
-			} else {
-				command(::keyboard::command::click_off);
-				for (size_t i = 0; i < 6; i++) {
-					if (key_report.keys[i] == key) {
-						key_report.keys[i] = KeyUsage::RESERVED;
-						break;
-					}
-				}
-			}
-
+		if (!is_break) {
+			return press(key);
+		} else {
+			return release(key);
 		}
-
-		return report_type::key;
 	}
 
 	report_type keyboard::handle_keycode_fn(uint8_t c) {
@@ -269,6 +307,20 @@ namespace keyboard {
 		} else if (c == ::keyboard::keys::undo) {
 			clear_overrides();
 			beep<150>();
+		} else if (c == ::keyboard::keys::again) {
+			m_mode = mode::macro_record;
+			m_macroSize = 0;
+			command(::keyboard::command::click_on);
+		} else if (c == ::keyboard::keys::escape) {
+			// Playback of macro buffer
+			for(uint8_t i = 0; i < m_macroSize; i++) {
+				auto type = handle_keycode(m_macroBuffer[i]);
+				while(!usbInterruptIsReady()) {
+					usbPoll();
+					wdt_reset();
+				}
+				send_report_intr(type);
+			}
 		}
 
 		return report_type::none;

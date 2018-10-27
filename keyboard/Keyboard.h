@@ -120,9 +120,12 @@ namespace keyboard {
 
 		static constexpr uint8_t keymapSize = 128;
 		KeyUsage m_keyMap[keymapSize];
-		uint8_t m_curOverride;
-		uint8_t m_macroBuffer[64];
-		uint8_t m_macroSize;
+		union {
+			uint8_t m_curOverride;
+			uint8_t m_macroSize;
+		};
+		static constexpr uint8_t macroSize = 64;
+		uint8_t m_macroBuffer[macroSize];
 		uint8_t m_ledState;
 		uint8_t m_protocol;
 
@@ -155,6 +158,9 @@ namespace keyboard {
 			uart::send(as_byte(command), payload);
 		}
 
+		report_type press(KeyUsage key);
+		report_type release(KeyUsage key);
+
 	public:
 		static constexpr uint8_t protocol_report = 0;
 		static constexpr uint8_t protocol_boot = 1;
@@ -162,7 +168,7 @@ namespace keyboard {
 		keyboard() noexcept :
 			m_mode(mode::normal), m_keystate(keystate::clear),
 			m_keyMap{KeyUsage::RESERVED}, m_curOverride(0),
-			m_macroBuffer{0}, m_macroSize(0),
+			m_macroBuffer{0},
 			m_ledState(0), m_protocol(protocol_report)
 		{
 			key_report.report_id = report_type::key;
