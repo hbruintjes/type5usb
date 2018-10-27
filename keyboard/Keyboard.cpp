@@ -208,6 +208,22 @@ namespace keyboard {
 			} else {
 				key_report.modMask &= ~(1 << bit);
 			}
+		} else if (key >= KeyUsage::MUTE && key <= KeyUsage::VOLUME_DOWN) {
+			auto bit = as_byte(key) - as_byte(KeyUsage::MUTE);
+			if (!is_break) {
+				media_report.keyMask |= 1 << bit;
+			} else {
+				media_report.keyMask &= ~(1 << bit);
+			}
+			return report_type::media;
+		} else if (key == KeyUsage::POWER) {
+			auto bit = as_byte(key) - as_byte(KeyUsage::POWER);
+			if (!is_break) {
+				system_report.keyMask |= 1 << bit;
+			} else {
+				media_report.keyMask &= ~(1 << bit);
+			}
+			return report_type::system;
 		} else if (m_keystate != keystate::rollover) {
 			if (!is_break) {
 				size_t i;

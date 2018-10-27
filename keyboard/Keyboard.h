@@ -166,6 +166,8 @@ namespace keyboard {
 			m_ledState(0), m_protocol(protocol_report)
 		{
 			key_report.report_id = report_type::key;
+			media_report.report_id = report_type::media;
+			system_report.report_id = report_type::system;
 		}
 
 		void init() {

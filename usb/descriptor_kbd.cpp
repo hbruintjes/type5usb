@@ -18,10 +18,14 @@ extern "C" PROGMEM const char usbDescriptorHidReport[USB_CFG_HID_REPORT_DESCRIPT
 		LOGICAL_MIN(0),
 		LOGICAL_MAX(1),
 		INPUT(MainFlag::Data | MainFlag::Variable | MainFlag::Absolute),
-		/*// Reserved
-		REPORT_SIZE(1),
-		REPORT_COUNT(8),
-		INPUT(MainFlag::Constant | MainFlag::Variable | MainFlag::Absolute),*/
+		// Report keys
+		REPORT_SIZE(8),
+		REPORT_COUNT(6),
+		USAGE_MIN(as_byte(KeyUsage::RESERVED)),
+		USAGE_MAX(as_byte(KeyUsage::VOLUME_DOWN)),
+		LOGICAL_MIN(as_byte(KeyUsage::RESERVED)),
+		LOGICAL_MAX(as_byte(KeyUsage::VOLUME_DOWN)),
+		INPUT(MainFlag::Data | MainFlag::Array | MainFlag::Absolute),
 		// Status LEDs
 		REPORT_SIZE(1),
 		REPORT_COUNT(5),
@@ -34,14 +38,6 @@ extern "C" PROGMEM const char usbDescriptorHidReport[USB_CFG_HID_REPORT_DESCRIPT
 		REPORT_COUNT(3),
 		OUTPUT(MainFlag::Constant | MainFlag::Variable | MainFlag::Absolute),
 		USAGE_PAGE(UsagePage::Keyboard),
-		// Report keys
-		REPORT_SIZE(8),
-		REPORT_COUNT(6),
-		USAGE_MIN(as_byte(KeyUsage::RESERVED)),
-		USAGE_MAX(as_byte(KeyUsage::VOLUME_DOWN)),
-		LOGICAL_MIN(as_byte(KeyUsage::RESERVED)),
-		LOGICAL_MAX(as_byte(KeyUsage::VOLUME_DOWN)),
-		INPUT(MainFlag::Data | MainFlag::Array | MainFlag::Absolute),
 	END_COLLECTION(),
 	USAGE_PAGE(UsagePage::Consumer),
 	USAGE(Consumer::Control),
