@@ -115,10 +115,6 @@ static inline void main_body() {
 	keyboard::report_type report_type;
 	if ((report_type = keyboard_handler.poll_event()) != keyboard::report_type::none) {
 		// Wait for USB ready before handling next key
-		while(!usbInterruptIsReady() && !uart::full()) {
-			usbPoll();
-			wdt_reset();
-		}
 		keyboard_handler.send_report_intr(report_type);
 	}
 }

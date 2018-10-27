@@ -16,7 +16,6 @@ namespace morse {
 			0b100'10000, //b
 			0b100'10100, //c
 			0b011'10000, //d
-
 			0b001'00000, //e
 			0b100'00100, //f
 			0b011'11000, //g
@@ -128,6 +127,7 @@ namespace keyboard {
 						if (c == ::keyboard::keys::fn) {
 							if (m_mode == mode::macro_record) {
 								command(::keyboard::command::click_off);
+								toggle_led(::keyboard::led::compose);
 								m_mode = mode::normal;
 							} else {
 								m_mode = mode::fn;
@@ -277,20 +277,25 @@ namespace keyboard {
 			return report_type::none;
 		}
 
-		if (m_mode == mode::macro_record) {
+		report_type type;
+		if (!is_break) {
+			type = press(key);
+		} else {
+			type = release(key);
+		}
+
+		if (type == report_type::key && m_mode == mode::macro_record) {
 			m_macroBuffer[m_macroSize] = (c | is_break);
 			m_macroSize++;
 			if (m_macroSize == macroSize) {
-				beep<150>();
+				command(::keyboard::command::click_off);
+				toggle_led(::keyboard::led::compose);
 				m_mode = mode::normal;
+				beep<150>();
 			}
 		}
 
-		if (!is_break) {
-			return press(key);
-		} else {
-			return release(key);
-		}
+		return type;
 	}
 
 	report_type keyboard::handle_keycode_fn(uint8_t c) {
@@ -314,12 +319,17 @@ namespace keyboard {
 		} else if (c == ::keyboard::keys::escape) {
 			// Playback of macro buffer
 			for(uint8_t i = 0; i < m_macroSize; i++) {
-				auto type = handle_keycode(m_macroBuffer[i]);
-				while(!usbInterruptIsReady()) {
-					usbPoll();
-					wdt_reset();
+				handle_keycode(m_macroBuffer[i]);
+				send_report_intr(report_type::key);
+			}
+			// Send all keys up
+			if (m_keystate != keystate::clear) {
+				key_report.modMask = 0;
+				for (uint8_t i = 0; i < sizeof(key_report.keys); i++) {
+					key_report.keys[i] = KeyUsage::RESERVED;
 				}
-				send_report_intr(type);
+				m_keystate = keystate::clear;
+				send_report_intr(report_type::key);
 			}
 		}
 
@@ -375,5 +385,31 @@ namespace keyboard {
 			ledStatus |= as_byte(led::compose);
 		}
 		set_led(ledStatus);
+	}
+
+	void keyboard::send_report_intr(report_type type) const {
+		while(!usbInterruptIsReady()) {
+			usbPoll();
+			wdt_reset();
+		}
+
+		if (m_protocol == protocol_boot && (type == report_type::boot || type == report_type::key)) {
+			usbSetInterrupt(const_cast<unsigned char *>(boot_report_data), sizeof(boot_report_data));
+		} else {
+			switch(type) {
+				default:
+				case report_type::key:
+					// Keyboard
+					usbSetInterrupt(const_cast<unsigned char *>(key_report_data), sizeof(key_report_data));
+					break;
+				case report_type::media:
+					// Media
+					usbSetInterrupt(const_cast<unsigned char *>(media_report_data), sizeof(media_report_data));
+					break;
+				case report_type::system:
+					usbSetInterrupt(const_cast<unsigned char *>(system_report_data), sizeof(system_report_data));
+					break;
+			}
+		}
 	}
 }

@@ -198,26 +198,7 @@ namespace keyboard {
 
 		void set_led_report(unsigned char data);
 
-		void send_report_intr(report_type type) const {
-			if (m_protocol == protocol_boot && (type == report_type::boot || type == report_type::key)) {
-				usbSetInterrupt(const_cast<unsigned char *>(boot_report_data), sizeof(boot_report_data));
-			} else {
-				switch(type) {
-					default:
-					case report_type::key:
-						// Keyboard
-						usbSetInterrupt(const_cast<unsigned char *>(key_report_data), sizeof(key_report_data));
-						break;
-					case report_type::media:
-						// Media
-						usbSetInterrupt(const_cast<unsigned char *>(media_report_data), sizeof(media_report_data));
-						break;
-					case report_type::system:
-						usbSetInterrupt(const_cast<unsigned char *>(system_report_data), sizeof(system_report_data));
-						break;
-				}
-			}
-		}
+		void send_report_intr(report_type type) const;
 
 		uint8_t set_report_ptr(unsigned char* *ptr, uint8_t main_type, report_type type) const {
 			if (main_type != 1) {
