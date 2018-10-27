@@ -119,7 +119,6 @@ namespace keyboard {
 		keystate m_keystate;
 
 		static constexpr uint8_t keymapSize = 128;
-		KeyUsage m_keyMap[keymapSize];
 		union {
 			uint8_t m_curOverride;
 			uint8_t m_macroSize;
@@ -167,8 +166,7 @@ namespace keyboard {
 
 		keyboard() noexcept :
 			m_mode(mode::normal), m_keystate(keystate::clear),
-			m_keyMap{KeyUsage::RESERVED}, m_curOverride(0),
-			m_macroBuffer{0},
+			m_curOverride(0), m_macroBuffer{0},
 			m_ledState(0), m_protocol(protocol_report)
 		{
 			key_report.report_id = report_type::key;
@@ -178,7 +176,6 @@ namespace keyboard {
 
 		void init() {
 			command(::keyboard::command::reset);
-			load_overrides();
 		}
 
 		uint8_t& get_protocol() {
@@ -190,11 +187,11 @@ namespace keyboard {
 				m_protocol = protocol;
 				key_report = key_report_t{report_type::key, 0, {KeyUsage::RESERVED}};
 			} else if (protocol == protocol_boot) {
-				boot_report = {0, 0, {KeyUsage::RESERVED}};
+				//boot_report = {0, 0, {KeyUsage::RESERVED}};
 			}
 		}
 
-		report_type poll_event();
+		void poll_event();
 
 		void set_led_report(unsigned char data);
 

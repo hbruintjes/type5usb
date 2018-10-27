@@ -112,11 +112,7 @@ ISR(TIMER1_COMPA_vect) {
 
 static inline void main_body() {
 	usbPoll();
-	keyboard::report_type report_type;
-	if ((report_type = keyboard_handler.poll_event()) != keyboard::report_type::none) {
-		// Wait for USB ready before handling next key
-		keyboard_handler.send_report_intr(report_type);
-	}
+	keyboard_handler.poll_event();
 }
 
 static void usbReset() {

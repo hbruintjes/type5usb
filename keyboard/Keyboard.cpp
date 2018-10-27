@@ -53,29 +53,23 @@ namespace morse {
 }
 
 namespace keyboard {
-	constexpr uint8_t keymap_version = 2;
-	void keyboard::load_overrides() {
-		if (eeprom_read_byte(reinterpret_cast<uint8_t*>(keymapSize)) == keymap_version) {
-			// Seems OK
-			eeprom_read_block(m_keyMap, reinterpret_cast<uint8_t*>(0), keymapSize);
-		} else {
-			clear_overrides();
-		}
+	KeyUsage read_keymap(uint8_t c) {
+		return static_cast<KeyUsage>(eeprom_read_byte(reinterpret_cast<uint8_t*>(c)));
 	}
 
+	constexpr uint8_t keymap_version = 2;
 	void keyboard::clear_overrides() {
 		eeprom_update_byte(reinterpret_cast<uint8_t*>(keymapSize), ~keymap_version);
 		for (uint8_t i = 0; i < keymapSize; i++) {
 			uint8_t key = pgm_read_word_near(keymap + i);
-			m_keyMap[i] = static_cast<KeyUsage>(key);
+			eeprom_update_byte(reinterpret_cast<uint8_t*>(i), key);
 		}
-		eeprom_update_block(m_keyMap, reinterpret_cast<uint8_t*>(0), keymapSize);
 		eeprom_update_byte(reinterpret_cast<uint8_t*>(keymapSize), keymap_version);
 	}
 
-	report_type keyboard::poll_event() {
+	void keyboard::poll_event() {
 		if (!uart::poll()) {
-			return report_type::none;
+			return;
 		}
 		uint8_t c = uart::recv();
 
@@ -83,9 +77,8 @@ namespace keyboard {
 		if (c == response::layout) {
 			m_mode = mode::layout;
 		} else if (c == response::reset) {
-			return report_type::none;
 			m_mode = mode::reset;
-			return report_type::none;
+			return;
 		}
 
 		switch (m_mode) {
@@ -100,7 +93,7 @@ namespace keyboard {
 				} else if (c == response::reset_fail2) {
 					m_mode = mode::error;
 				}
-				break;
+				return;
 			case mode::normal:
 			case mode::macro_record:
 				// Handle keyboard response codes
@@ -114,11 +107,10 @@ namespace keyboard {
 							command(::keyboard::command::click_off);
 						}
 						m_keystate = keystate::clear;
-						return report_type::key;
-					} else {
-						// Avoid reporting empty too often
-						return report_type::none;
+						send_report_intr(report_type::key);
+						return;
 					}
+					return;
 				}
 
 				// Base action on what keys are depressed
@@ -133,14 +125,15 @@ namespace keyboard {
 								m_mode = mode::fn;
 								toggle_led(::keyboard::led::compose);
 							}
-							break;
+							return;
 						}
 						// Fall-through
 					case keystate::rollover:
 						// Handled by handle_keycode, modifiers may still be
 						// reported
 					default: // clear or in_use
-						return handle_keycode(c);
+						send_report_intr(handle_keycode(c));
+						return;
 				}
 				break;
 			case mode::fn:
@@ -148,9 +141,9 @@ namespace keyboard {
 					m_mode = mode::normal;
 					toggle_led(::keyboard::led::compose);
 				} else {
-					return handle_keycode_fn(c);
+					send_report_intr(handle_keycode_fn(c));
 				}
-				break;
+				return;
 			case mode::morse:
 				if (c == ::keyboard::keys::fn) {
 					m_mode = mode::normal;
@@ -158,7 +151,7 @@ namespace keyboard {
 				} else {
 					handle_morsecode(c);
 				}
-				break;
+				return;
 			case mode::keyswap1:
 				if (c == ::keyboard::keys::fn) {
 					toggle_led(::keyboard::led::compose);
@@ -167,7 +160,7 @@ namespace keyboard {
 					m_curOverride = c;
 					m_mode = mode::keyswap2;
 				}
-				break;
+				return;
 			case mode::keyswap2:
 				if (c < response::idle) {
 					toggle_led(::keyboard::led::compose);
@@ -175,20 +168,18 @@ namespace keyboard {
 					if (c != ::keyboard::keys::fn) {
 						// Read original code from flash
 						auto keyUsage = static_cast<KeyUsage>(pgm_read_word_near(keymap + m_curOverride));
-						m_keyMap[c] = keyUsage;
 						eeprom_update_byte(reinterpret_cast<uint8_t*>(c), static_cast<uint8_t>(keyUsage));
 						beep<50>();
 					}
 				}
-				break;
+				return;
 			case mode::error:
-				break;
+				return;
 			case mode::layout:
 				// c is layout
 				m_mode = mode::normal;
-				break;
+				return;
 		}
-		return report_type::none;
 	}
 
 	report_type keyboard::press(KeyUsage key) {
@@ -272,7 +263,7 @@ namespace keyboard {
 		uint8_t is_break = (c & static_cast<uint8_t>(0x80));
 		c &= 0x7F;
 
-		auto key = m_keyMap[c];
+		auto key = read_keymap(c);
 		if (key == KeyUsage::RESERVED) {
 			return report_type::none;
 		}
@@ -306,17 +297,18 @@ namespace keyboard {
 		if (c == ::keyboard::keys::help) {
 			m_mode = mode::morse;
 			beep<150>();
-		} else if (c == ::keyboard::keys::copy) {
+		} else if (c == ::keyboard::keys::paste) {
 			m_mode = mode::keyswap1;
 			beep<150>();
-		} else if (c == ::keyboard::keys::undo) {
+		} else if (c == ::keyboard::keys::escape) {
 			clear_overrides();
+			//TODO: clear macros
 			beep<150>();
-		} else if (c == ::keyboard::keys::again) {
+		} else if (c == ::keyboard::keys::copy) {
 			m_mode = mode::macro_record;
 			m_macroSize = 0;
 			command(::keyboard::command::click_on);
-		} else if (c == ::keyboard::keys::escape) {
+		} else if (c == ::keyboard::keys::again) {
 			// Playback of macro buffer
 			for(uint8_t i = 0; i < m_macroSize; i++) {
 				handle_keycode(m_macroBuffer[i]);
@@ -329,8 +321,15 @@ namespace keyboard {
 					key_report.keys[i] = KeyUsage::RESERVED;
 				}
 				m_keystate = keystate::clear;
-				send_report_intr(report_type::key);
+				return report_type::key;
 			}
+		} else if (c == ::keyboard::keys::stop) {
+			key_report.modMask = SPL;
+			send_report_intr(report_type::key);
+			key_report.modMask = SPH;
+			send_report_intr(report_type::key);
+			key_report.modMask = 0;
+			send_report_intr(report_type::key);
 		}
 
 		return report_type::none;
