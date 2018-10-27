@@ -2,12 +2,17 @@
 
 #include "usb/report.h"
 
+#include <avr/eeprom.h>
 #include <avr/pgmspace.h>
 #include <stdint.h>
 
-extern const PROGMEM KeyUsage keymap[0x80];
-
 namespace keyboard {
+	extern const PROGMEM KeyUsage keymap_flash[0x7F];
+	extern EEMEM KeyUsage keymap_eeprom[0x7F];
+
+	constexpr uint8_t keymap_version = 2;
+	extern EEMEM uint8_t keymap_eeprom_version;
+
 	namespace keys {
 		constexpr uint8_t help = 0x76;
 

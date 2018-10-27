@@ -9,6 +9,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <util/delay.h>
+#include <avr/eeprom.h>
 
 namespace keyboard {
 	enum class command : uint8_t {
@@ -79,7 +80,18 @@ namespace keyboard {
 	};
 	static_assert(sizeof(system_report_t) == 2, "Invalid report size");
 
-	class keyboard {
+	static constexpr uint8_t macro_large = 127;
+	static constexpr uint8_t macro_small = 63;
+	extern EEMEM uint8_t macro1[macro_large];
+	extern EEMEM uint8_t macro1_size;
+	extern EEMEM uint8_t macro2[macro_large];
+	extern EEMEM uint8_t macro2_size;
+	extern EEMEM uint8_t macro3[macro_small];
+	extern EEMEM uint8_t macro3_size;
+	extern EEMEM uint8_t macro4[macro_small];
+	extern EEMEM uint8_t macro4_size;
+
+	class keyhandler {
 		union {
 			union {
 				boot_report_t boot_report;
@@ -107,6 +119,7 @@ namespace keyboard {
 			keyswap1,
 			keyswap2,
 			macro_record,
+			macro_save,
 			morse,
 		};
 
@@ -118,21 +131,23 @@ namespace keyboard {
 		};
 		keystate m_keystate;
 
-		static constexpr uint8_t keymapSize = 128;
 		union {
 			uint8_t m_curOverride;
 			uint8_t m_macroSize;
 		};
-		static constexpr uint8_t macroSize = 64;
-		uint8_t m_macroBuffer[macroSize];
+		uint8_t m_macroBuffer[macro_large];
 		uint8_t m_ledState;
 		uint8_t m_protocol;
 
-		void load_overrides();
-		void clear_overrides();
+		void check_config();
+		void clear_config();
 		report_type handle_keycode(uint8_t key);
 		report_type handle_keycode_fn(uint8_t key);
 		void handle_morsecode(uint8_t key);
+
+		report_type play_macro();
+
+		void print_stack();
 
 		template<uint16_t ms>
 		void beep() const {
@@ -164,7 +179,7 @@ namespace keyboard {
 		static constexpr uint8_t protocol_report = 0;
 		static constexpr uint8_t protocol_boot = 1;
 
-		keyboard() noexcept :
+		keyhandler() noexcept :
 			m_mode(mode::normal), m_keystate(keystate::clear),
 			m_curOverride(0), m_macroBuffer{0},
 			m_ledState(0), m_protocol(protocol_report)
@@ -175,6 +190,7 @@ namespace keyboard {
 		}
 
 		void init() {
+			check_config();
 			command(::keyboard::command::reset);
 		}
 
@@ -187,6 +203,7 @@ namespace keyboard {
 				m_protocol = protocol;
 				key_report = key_report_t{report_type::key, 0, {KeyUsage::RESERVED}};
 			} else if (protocol == protocol_boot) {
+				//m_protocol = protocol;
 				//boot_report = {0, 0, {KeyUsage::RESERVED}};
 			}
 		}

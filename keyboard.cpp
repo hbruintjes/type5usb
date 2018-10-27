@@ -23,7 +23,7 @@ extern "C" {
 static uchar idleRate[3] = {0};
 static uchar idleTime[3] = {0};
 static keyboard::report_type type = keyboard::report_type::none;
-static keyboard::keyboard keyboard_handler;
+static keyboard::keyhandler keyboard_handler;
 
 /* ------------------------------------------------------------------------- */
 uchar usbFunctionWrite(uchar *data, uchar len) {

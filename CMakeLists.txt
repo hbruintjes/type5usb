@@ -83,6 +83,7 @@ add_subdirectory(lib/v-usb/usbdrv)
 
 add_avr_executable(keyboard
     keyboard.cpp
+    stack.c
 
     usb/descriptor_kbd.cpp
     usb/report.h
@@ -98,5 +99,5 @@ add_avr_executable(keyboard
     )
 
 target_link_libraries(keyboard PRIVATE vusb)
-target_compile_options(keyboard PRIVATE "-std=c++14")
 target_include_directories(keyboard PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
+set_target_properties(keyboard PROPERTIES CXX_STANDARD 14)
