@@ -156,13 +156,16 @@ namespace keyboard {
 			command(::keyboard::command::bell_off);
 		}
 
-		void set_led(uint8_t state) {
+		void reset_led() {
+			command(::keyboard::command::led_status, m_ledState);
+		}
+
+		void set_ledstate(uint8_t state) {
 			m_ledState = state;
 			command(::keyboard::command::led_status, m_ledState);
 		}
-		void toggle_led(::keyboard::led led) {
-			m_ledState ^= static_cast<uint8_t>(led);
-			command(::keyboard::command::led_status, m_ledState);
+		void set_led(::keyboard::led led) {
+			command(::keyboard::command::led_status, m_ledState | static_cast<uint8_t>(led));
 		}
 
 		void command(::keyboard::command command) const {

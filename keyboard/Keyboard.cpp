@@ -76,7 +76,10 @@ namespace keyboard {
 	}
 
 	void keyhandler::check_config() {
-
+		auto version = eeprom_read_byte(&keyboard::keymap_eeprom_version);
+		if (version != keyboard::keymap_version) {
+			clear_config();
+		}
 	}
 
 	void keyhandler::clear_config() {
@@ -141,11 +144,11 @@ namespace keyboard {
 				if (c == ::keyboard::keys::fn) {
 					if (m_mode == mode::macro_record) {
 						command(::keyboard::command::click_off);
-						toggle_led(::keyboard::led::compose);
+						reset_led();
 						m_mode = mode::normal;
 					} else if (m_keystate == keystate::clear) {
 						m_mode = mode::fn;
-						toggle_led(::keyboard::led::compose);
+						set_led(::keyboard::led::compose);
 					}
 					// FN never acts as a regular key
 					return;
@@ -155,23 +158,23 @@ namespace keyboard {
 				return;
 			case mode::fn:
 				if (c == response::idle) {
+					reset_led();
 					m_mode = mode::normal;
-					toggle_led(::keyboard::led::compose);
 				} else {
 					send_report_intr(handle_keycode_fn(c));
 				}
 				return;
 			case mode::morse:
 				if (c == ::keyboard::keys::fn) {
+					reset_led();
 					m_mode = mode::normal;
-					toggle_led(::keyboard::led::compose);
 				} else {
 					handle_morsecode(c);
 				}
 				return;
 			case mode::keyswap1:
 				if (c == ::keyboard::keys::fn) {
-					toggle_led(::keyboard::led::compose);
+					reset_led();
 					m_mode = mode::normal;
 				} else if (c < response::idle) {
 					m_curOverride = c;
@@ -180,12 +183,12 @@ namespace keyboard {
 				return;
 			case mode::keyswap2:
 				if (c < response::idle) {
-					toggle_led(::keyboard::led::compose);
+					reset_led();
 					m_mode = mode::normal;
 					if (c != ::keyboard::keys::fn) {
 						// Read original code from flash
 						auto keyUsage = static_cast<KeyUsage>(pgm_read_word_near(keymap_flash + m_curOverride));
-						eeprom_update_byte(reinterpret_cast<uint8_t*>(c), static_cast<uint8_t>(keyUsage));
+						eeprom_update_byte(reinterpret_cast<uint8_t*>(keymap_eeprom + c), static_cast<uint8_t>(keyUsage));
 						beep<50>();
 					}
 				}
@@ -196,28 +199,31 @@ namespace keyboard {
 					switch (c) {
 						case ::keyboard::keys::n1:
 						case ::keyboard::keys::f9:
-							if (m_macroSize < DIM(macro1)) {
+							if (m_macroSize <= DIM(macro1)) {
 								eeprom_update_block(m_macroBuffer, macro1, m_macroSize);
 								eeprom_update_byte(&macro1_size, m_macroSize);
+								ok = true;
 							}
 							break;
 						case ::keyboard::keys::n2:
 						case ::keyboard::keys::f10:
-							if (m_macroSize < DIM(macro2)) {
+							if (m_macroSize <= DIM(macro2)) {
 								eeprom_update_block(m_macroBuffer, macro2, m_macroSize);
 								eeprom_update_byte(&macro2_size, m_macroSize);
+								ok = true;
 							}
 							break;
 						case ::keyboard::keys::n3:
 						case ::keyboard::keys::f11:
-							if (m_macroSize < DIM(macro3)) {
+							if (m_macroSize <= DIM(macro3)) {
 								eeprom_update_block(m_macroBuffer, macro3, m_macroSize);
 								eeprom_update_byte(&macro3_size, m_macroSize);
+								ok = true;
 							}
 							break;
 						case ::keyboard::keys::n4:
 						case ::keyboard::keys::f12:
-							if (m_macroSize < DIM(macro4)) {
+							if (m_macroSize <= DIM(macro4)) {
 								eeprom_update_block(m_macroBuffer, macro4, m_macroSize);
 								eeprom_update_byte(&macro4_size, m_macroSize);
 								ok = true;
@@ -234,7 +240,7 @@ namespace keyboard {
 						_delay_ms(50);
 						beep<50>();
 					}
-					toggle_led(::keyboard::led::compose);
+					reset_led();
 					m_mode = mode::normal;
 				}
 				return;
@@ -345,7 +351,7 @@ namespace keyboard {
 			m_macroSize++;
 			if (m_macroSize == DIM(m_macroBuffer)) {
 				command(::keyboard::command::click_off);
-				toggle_led(::keyboard::led::compose);
+				reset_led();
 				m_mode = mode::normal;
 				beep<150>();
 			}
@@ -484,7 +490,7 @@ namespace keyboard {
 		if (data & _BV(3)) {
 			ledStatus |= as_byte(led::compose);
 		}
-		set_led(ledStatus);
+		set_ledstate(ledStatus);
 	}
 
 	void keyhandler::send_report_intr(report_type type) const {
