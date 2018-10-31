@@ -78,11 +78,12 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
 
 
 void initTimer() {
+/*
 	TCCR0A = _BV(WGM01);
 	TCCR0B = _BV(CS01) | _BV(CS00); // freq = F_CPU/1024
 	OCR0A = 0x10; // Compare 16, INTR_freq = freq/16r
 	TIMSK0 = _BV(OCIE0A);
-
+*/
 	TCCR1A = _BV(WGM12); // Simple CTC timer
 	TCCR1B = _BV(WGM12) | _BV(CS12); // Simple CTC timer, prescale 256
 	OCR1A = 2500; // Compare at 2500, meaning 4ms delay
@@ -139,11 +140,8 @@ static void usbReset() {
 int main()
 {
 	wdt_disable();
-/*
+
 	// Turn off stuff not needed
-	PORTB = 0;
-	DDRB |= _BV(PORTB1);
-	PORTB |= _BV(PORTB1);
 	ACSR |= _BV(ACD);
 	ADCSRA = 0;
 	PRR = _BV(PRLIN) | _BV(PRSPI) | _BV(PRTIM1) | _BV(PRTIM0) | _BV(PRUSI) | _BV(PRADC);
@@ -151,13 +149,15 @@ int main()
 	// Clear reset status flag
 	MCUSR = 0;
 
+	// Enable interrupt on pin change,
+	// usbdrv.h does not have a place for that
+	EIMSK |= _BV(PCIE1);
+/*
 	cli();
 	// Enable USB interrupts and go to sleep immediately, waking up
 	// on USB activity
 	usbDeviceConnect();
-	// Enable interrupt on pin change,
-	// usbdrv.h does not have a place for that
-	EIMSK |= _BV(PCIE1);
+
 	usbInit(); // Enables USB interrupts
 
 	// Go to sleep if not in USB reset mode
@@ -171,11 +171,10 @@ int main()
 		sleep_disable();
 	}
 	sei();
-
-	PORTB |= _BV(PORTB1);
+*/
 	// Re-enable LIN and timers
 	PRR = _BV(PRSPI) | _BV(PRUSI) | _BV(PRADC);
-*/
+
 	// Init peripheries
 	initTimer();
 	uart::init(1200);
