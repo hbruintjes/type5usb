@@ -78,6 +78,7 @@ set(USB_CFG_DEVICE_CLASS 0)
 set(USB_CFG_INTERFACE_CLASS 3)
 set(USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH 119)
 set(USB_CFG_IMPLEMENT_FN_WRITE ON)
+#set(USB_COUNT_SOF ON)
 
 add_subdirectory(lib/v-usb/usbdrv)
 
@@ -100,4 +101,5 @@ add_avr_executable(keyboard
 
 target_link_libraries(keyboard PRIVATE vusb)
 target_include_directories(keyboard PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
+#target_compile_options(keyboard PRIVATE -fstack-usage)
 set_target_properties(keyboard PROPERTIES CXX_STANDARD 14)

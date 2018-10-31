@@ -16,7 +16,7 @@ void StackPaint(void)
 
     while(p <= &__stack)
     {
-        *p = STACK_CANARY;
+        *p = 0xc5;
         p++;
     }
 #else

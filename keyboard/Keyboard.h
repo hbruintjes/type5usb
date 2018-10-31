@@ -111,6 +111,7 @@ namespace keyboard {
 			unsigned char system_report_data[sizeof(system_report_t)];
 		};
 		enum class mode : uint8_t {
+			off,
 			reset,
 			normal,
 			fn,
@@ -183,7 +184,7 @@ namespace keyboard {
 		static constexpr uint8_t protocol_boot = 1;
 
 		keyhandler() noexcept :
-			m_mode(mode::normal), m_keystate(keystate::clear),
+			m_mode(mode::off), m_keystate(keystate::clear),
 			m_curOverride(0), m_macroBuffer{0},
 			m_ledState(0), m_protocol(protocol_report)
 		{
@@ -193,8 +194,25 @@ namespace keyboard {
 		}
 
 		void init() {
+			// B0: keyboard. B1: LED
+			DDRB |= _BV(PORTB0) | _BV(PORTB1);
 			check_config();
-			command(::keyboard::command::reset);
+			//command(::keyboard::command::reset);
+		}
+
+		void enable() {
+			if (m_mode == mode::off) {
+				m_mode = mode::reset; // keyboard performs self-test on powerup
+				m_keystate = keystate::clear;
+				PORTB |= _BV(PORTB0) | _BV(PORTB1);
+			}
+		}
+
+		void disable() {
+			if (m_mode != mode::off) {
+				m_mode = mode::off;
+				PORTB &= ~(_BV(PORTB0) | _BV(PORTB1));
+			}
 		}
 
 		uint8_t& get_protocol() {

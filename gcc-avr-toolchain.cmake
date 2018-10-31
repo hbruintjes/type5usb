@@ -211,7 +211,7 @@ function(add_avr_executable EXECUTABLE_NAME)
    # disassemble
    add_custom_target(
       ${EXECUTABLE_NAME}-disassemble
-      COMMAND ${AVR_OBJDUMP} -h -S $<TARGET_FILE:${EXECUTABLE_NAME}> > "$<TARGET_FILE_DIR:${EXECUTABLE_NAME}>/${EXECUTABLE_NAME}.lst"
+      COMMAND ${AVR_OBJDUMP} -h -S $<TARGET_FILE:${EXECUTABLE_NAME}> > "$<TARGET_FILE_DIR:${EXECUTABLE_NAME}>/${OUTPUT_NAME}.lst"
       DEPENDS ${EXECUTABLE_NAME}
    )
 

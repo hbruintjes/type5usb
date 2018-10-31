@@ -110,6 +110,9 @@ namespace keyboard {
 		}
 
 		switch (m_mode) {
+			case mode::off:
+				// Uhhh, what?
+				return;
 			case mode::reset:
 				if (c == response::reset_ok) {
 					command(::keyboard::command::led_status, m_ledState);
@@ -302,7 +305,7 @@ namespace keyboard {
 			return report_type::media;
 		} else if (key == KeyUsage::POWER) {
 			auto bit = as_byte(key) - as_byte(KeyUsage::POWER);
-			media_report.keyMask &= ~(1 << bit);
+			system_report.keyMask &= ~(1 << bit);
 			return report_type::system;
 		} else if (key >= KeyUsage::RESERVED && key <= KeyUsage::VOLUME_DOWN &&
 		  m_keystate != keystate::rollover) {
@@ -457,7 +460,6 @@ namespace keyboard {
 		auto code = static_cast<uint8_t>(pgm_read_byte_near(morse::codes + c));
 		uint8_t len = code >> 5;
 		code <<= 3;
-		wdt_disable();
 		while(len > 0) {
 			if (code & 0x80) {
 				// long
@@ -472,7 +474,6 @@ namespace keyboard {
 			len--;
 		}
 		_delay_ms(150);
-		wdt_enable(WDTO_1S);
 	}
 
 	void keyhandler::set_led_report(unsigned char data) {
@@ -500,7 +501,6 @@ namespace keyboard {
 
 		while(!usbInterruptIsReady()) {
 			usbPoll();
-			wdt_reset();
 		}
 
 		if (m_protocol == protocol_boot && (type == report_type::boot || type == report_type::key)) {

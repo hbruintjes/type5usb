@@ -1,6 +1,7 @@
 #include <avr/io.h>
 #include <avr/wdt.h>
 #include <avr/interrupt.h>  /* for sei() */
+#include <avr/sleep.h>
 #include <util/delay.h>     /* for _delay_ms() */
 #include <avr/pgmspace.h>   /* required by usbdrv.h */
 #include <string.h>
@@ -77,10 +78,10 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
 
 
 void initTimer() {
-//	TCCR0A = _BV(WGM01);
-//	TCCR0B = _BV(CS01) | _BV(CS00); // freq = F_CPU/1024
-//	OCR0A = 0xff; // Compare 255, INTR_freq = freq/255
-//	TIMSK0 = _BV(OCIE0A);
+	TCCR0A = _BV(WGM01);
+	TCCR0B = _BV(CS01) | _BV(CS00); // freq = F_CPU/1024
+	OCR0A = 0x10; // Compare 16, INTR_freq = freq/16r
+	TIMSK0 = _BV(OCIE0A);
 
 	TCCR1A = _BV(WGM12); // Simple CTC timer
 	TCCR1B = _BV(WGM12) | _BV(CS12); // Simple CTC timer, prescale 256
@@ -88,8 +89,19 @@ void initTimer() {
 	TIMSK1 = _BV(OCIE1A);
 }
 
+// Watchdog used to perform soft-reset on USB timeout
+// (15ms is the min., USB specifies suspend already after 3ms)
+static volatile uchar prevSofCount = 0;
+extern volatile uchar usbSofCount;
+volatile uchar usbSofCount;
 ISR(TIMER0_COMPA_vect) {
-    // Once every 16.32 ms
+    // Once every ~1ms
+	if (prevSofCount != usbSofCount) {
+		wdt_reset();
+		prevSofCount = usbSofCount;
+	} else {
+		wdt_reset();
+	}
 }
 
 ISR(TIMER1_COMPA_vect) {
@@ -109,12 +121,6 @@ ISR(TIMER1_COMPA_vect) {
 	}
 }
 
-
-static inline void main_body() {
-	usbPoll();
-	keyboard_handler.poll_event();
-}
-
 static void usbReset() {
 	cli();
 	usbDeviceDisconnect();
@@ -122,7 +128,6 @@ static void usbReset() {
 	/* fake USB disconnect for > 250 ms */
 	uchar i = 0;
 	while(--i){
-		wdt_reset();
 		_delay_ms(1);
 	}
 	usbDeviceConnect();
@@ -134,16 +139,59 @@ static void usbReset() {
 int main()
 {
 	wdt_disable();
+/*
+	// Turn off stuff not needed
+	PORTB = 0;
+	DDRB |= _BV(PORTB1);
+	PORTB |= _BV(PORTB1);
+	ACSR |= _BV(ACD);
+	ADCSRA = 0;
+	PRR = _BV(PRLIN) | _BV(PRSPI) | _BV(PRTIM1) | _BV(PRTIM0) | _BV(PRUSI) | _BV(PRADC);
+
+	// Clear reset status flag
+	MCUSR = 0;
+
+	cli();
+	// Enable USB interrupts and go to sleep immediately, waking up
+	// on USB activity
+	usbDeviceConnect();
+	// Enable interrupt on pin change,
+	// usbdrv.h does not have a place for that
+	EIMSK |= _BV(PCIE1);
+	usbInit(); // Enables USB interrupts
+
+	// Go to sleep if not in USB reset mode
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	if (USBIN & USBMASK) { // Reset condition of both pins low
+		PORTB &= ~_BV(PORTB1);
+		sleep_enable();
+		sei();
+		// Not reset, assume suspended
+		sleep_cpu();
+		sleep_disable();
+	}
+	sei();
+
+	PORTB |= _BV(PORTB1);
+	// Re-enable LIN and timers
+	PRR = _BV(PRSPI) | _BV(PRUSI) | _BV(PRADC);
+*/
+	// Init peripheries
 	initTimer();
 	uart::init(1200);
-	_delay_ms(1000);
 	keyboard_handler.init();
-
 	usbReset();
 
-	wdt_enable(WDTO_1S);
+	// Wait for configuration to be set. Only then enable kbd and draw power
+	while(usbConfiguration != 1) {
+		usbPoll();
+	}
+
+	keyboard_handler.enable();
+
+	//wdt_enable(WDTO_15MS);
 	for(;;) {                /* main event loop */
-		wdt_reset();
-		main_body();
+		usbPoll();
+		keyboard_handler.poll_event();
 	}
 }

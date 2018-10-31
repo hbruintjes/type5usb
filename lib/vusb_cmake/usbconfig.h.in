@@ -386,4 +386,16 @@ section at the end of this file).
 /* #define USB_INTR_PENDING_BIT    INTF0 */
 /* #define USB_INTR_VECTOR         INT0_vect */
 
+/* Use PCINT11 (B3, D-) instead of INT0 */
+/*
+#define USB_INTR_CFG PCICR
+#define USB_INTR_CFG_SET (1 << PCIE1)
+#define USB_INTR_ENABLE PCMSK1
+#define USB_INTR_ENABLE_BIT PCINT11
+#define USB_INTR_PENDING PCIFR
+#define USB_INTR_PENDING_BIT PCIF1
+#define USB_INTR_VECTOR PCINT1_vect
+*/
+//#define USB_RX_USER_HOOK(data, len)  PORTB ^= _BV(PORTB1);
+
 #endif /* __usbconfig_h_included__ */
