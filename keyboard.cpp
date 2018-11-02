@@ -32,6 +32,8 @@ uchar usbFunctionWrite(uchar *data, uchar len) {
 	if (len == sizeof(keyboard::led_report_t) &&
 	  static_cast<keyboard::report_type>(data[0]) == keyboard::report_type::key) {
 		keyboard_handler.set_led_report(data[1]);
+	} else if (len == 1 && keyboard_handler.get_protocol() == keyboard::keyhandler::protocol_boot) {
+		keyboard_handler.set_led_report(data[0]);
 	}
 
 	// Done

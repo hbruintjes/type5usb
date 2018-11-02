@@ -205,8 +205,8 @@ namespace keyboard {
 		report_type release(KeyUsage key);
 
 	public:
-		static constexpr uint8_t protocol_report = 0;
-		static constexpr uint8_t protocol_boot = 1;
+		static constexpr uint8_t protocol_report = 1;
+		static constexpr uint8_t protocol_boot = 0;
 
 		keyhandler() noexcept :
 			boot_report_data{0}, key_report_data{0}, media_report_data{0}, system_report_data{0},
