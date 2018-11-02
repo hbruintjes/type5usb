@@ -377,24 +377,6 @@ section at the end of this file).
  * which is not fully supported (such as IAR C) or if you use a differnt
  * interrupt than INT0, you may have to define some of these.
  */
-/* #define USB_INTR_CFG            MCUCR */
-/* #define USB_INTR_CFG_SET        ((1 << ISC00) | (1 << ISC01)) */
-/* #define USB_INTR_CFG_CLR        0 */
-/* #define USB_INTR_ENABLE         GIMSK */
-/* #define USB_INTR_ENABLE_BIT     INT0 */
-/* #define USB_INTR_PENDING        GIFR */
-/* #define USB_INTR_PENDING_BIT    INTF0 */
-/* #define USB_INTR_VECTOR         INT0_vect */
-
-/* Use PCINT11 (B3, D-) instead of INT0 */
-
-#define USB_INTR_CFG PCMSK1
-#define USB_INTR_CFG_SET (1 << PCINT11)
-#define USB_INTR_CFG_CLR (~(1 << PCINT11))
-#define USB_INTR_ENABLE PCICR
-#define USB_INTR_ENABLE_BIT PCIE1
-#define USB_INTR_PENDING PCIFR
-#define USB_INTR_PENDING_BIT PCIF1
-#define USB_INTR_VECTOR PCINT1_vect
+@USB_CFG_MCU_DESC@
 
 #endif /* __usbconfig_h_included__ */

@@ -57,6 +57,15 @@ set(USB_CFG_INTERFACE_PROTOCOL "0" CACHE STRING "Define this to the length of th
 
 set(USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH "" CACHE STRING "Define this to the length of the HID report descriptor, if you implement an HID device.")
 
+set(USB_CFG_MCU_DESC [[/* #define USB_INTR_CFG            MCUCR */
+/* #define USB_INTR_CFG_SET        ((1 << ISC00) | (1 << ISC01)) */
+/* #define USB_INTR_CFG_CLR        0 */
+/* #define USB_INTR_ENABLE         GIMSK */
+/* #define USB_INTR_ENABLE_BIT     INT0 */
+/* #define USB_INTR_PENDING        GIFR */
+/* #define USB_INTR_PENDING_BIT    INTF0 */
+/* #define USB_INTR_VECTOR         INT0_vect */]] CACHE STRING "Optional MCU Description.")
+
 configure_file(usbconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/usbconfig.h @ONLY)
 
 add_avr_library(vusb STATIC
