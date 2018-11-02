@@ -78,12 +78,11 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
 
 
 void initTimer() {
-/*
 	TCCR0A = _BV(WGM01);
 	TCCR0B = _BV(CS01) | _BV(CS00); // freq = F_CPU/1024
 	OCR0A = 0x10; // Compare 16, INTR_freq = freq/16r
 	TIMSK0 = _BV(OCIE0A);
-*/
+
 	TCCR1A = _BV(WGM12); // Simple CTC timer
 	TCCR1B = _BV(WGM12) | _BV(CS12); // Simple CTC timer, prescale 256
 	OCR1A = 2500; // Compare at 2500, meaning 4ms delay
@@ -93,15 +92,11 @@ void initTimer() {
 // Watchdog used to perform soft-reset on USB timeout
 // (15ms is the min., USB specifies suspend already after 3ms)
 static volatile uchar prevSofCount = 0;
-extern volatile uchar usbSofCount;
-volatile uchar usbSofCount;
 ISR(TIMER0_COMPA_vect) {
     // Once every ~1ms
 	if (prevSofCount != usbSofCount) {
 		wdt_reset();
 		prevSofCount = usbSofCount;
-	} else {
-		wdt_reset();
 	}
 }
 
@@ -150,18 +145,15 @@ int main()
 	// Clear reset status flag
 	MCUSR = 0;
 
-/*
-	cli();
+
 	// Enable USB interrupts and go to sleep immediately, waking up
 	// on USB activity
 	usbDeviceConnect();
-
-	usbInit(); // Enables USB interrupts
+	usbInit();
 
 	// Go to sleep if not in USB reset mode
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	if (USBIN & USBMASK) { // Reset condition of both pins low
-		PORTB &= ~_BV(PORTB1);
 		sleep_enable();
 		sei();
 		// Not reset, assume suspended
@@ -169,7 +161,7 @@ int main()
 		sleep_disable();
 	}
 	sei();
-*/
+
 	// Re-enable LIN and timers
 	PRR = _BV(PRSPI) | _BV(PRUSI) | _BV(PRADC);
 
@@ -177,12 +169,6 @@ int main()
 	initTimer();
 	uart::init(1200);
 	keyboard_handler.init();
-	usbDeviceConnect();
-	usbInit();
-	// Enable interrupt on pin change,
-	// usbdrv.h does not have a place for that
-	//PCMSK1 = _BV(PCINT11);
-	sei();
 
 	// Wait for configuration to be set. Only then enable kbd and draw power
 	while(usbConfiguration != 1) {
@@ -191,7 +177,7 @@ int main()
 
 	keyboard_handler.enable();
 
-	//wdt_enable(WDTO_15MS);
+	wdt_enable(WDTO_15MS);
 	for(;;) {                /* main event loop */
 		usbPoll();
 		keyboard_handler.poll_event();

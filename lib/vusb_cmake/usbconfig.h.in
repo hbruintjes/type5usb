@@ -397,6 +397,4 @@ section at the end of this file).
 #define USB_INTR_PENDING_BIT PCIF1
 #define USB_INTR_VECTOR PCINT1_vect
 
-#define USB_RX_USER_HOOK(data, len)  PORTB ^= _BV(PORTB1);
-
 #endif /* __usbconfig_h_included__ */

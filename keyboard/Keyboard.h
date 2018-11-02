@@ -204,14 +204,14 @@ namespace keyboard {
 			if (m_mode == mode::off) {
 				m_mode = mode::reset; // keyboard performs self-test on powerup
 				m_keystate = keystate::clear;
-				PORTB |= _BV(PORTB0);// | _BV(PORTB1);
+				PORTB |= _BV(PORTB0) | _BV(PORTB1);
 			}
 		}
 
 		void disable() {
 			if (m_mode != mode::off) {
 				m_mode = mode::off;
-				PORTB &= ~(_BV(PORTB0));// | _BV(PORTB1));
+				PORTB &= ~(_BV(PORTB0) | _BV(PORTB1));
 			}
 		}
 
