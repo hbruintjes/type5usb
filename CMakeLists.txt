@@ -96,6 +96,7 @@ set(USB_CFG_MCU_DESC [[#define USB_INTR_CFG PCMSK1
 #define USB_INTR_PENDING_BIT PCIF1
 #define USB_INTR_VECTOR PCINT1_vect]])
 
+file(COPY lib/vusb_cmake/CMakeLists.txt lib/vusb_cmake/usbconfig.h.in DESTINATION lib/v-usb/usbdrv)
 add_subdirectory(lib/v-usb/usbdrv)
 
 add_avr_executable(keyboard
