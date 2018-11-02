@@ -12,6 +12,33 @@ extern "C" {
 #include <avr/eeprom.h>
 
 namespace keyboard {
+	template<typename T, size_t N>
+	struct array {
+		T m_val[N];
+
+		T* begin() {
+			return &(m_val[0]);
+		}
+		T const* cbegin() const {
+			return &(m_val[0]);
+		}
+		T* end() {
+			return &(m_val[N]);
+		}
+		T const* cend() const {
+			return &(m_val[N]);
+		}
+		T& operator[](size_t i) {
+			return m_val[i];
+		}
+		T const& operator[](size_t i) const {
+			return m_val[i];
+		}
+
+		size_t size() const {
+			return N;
+		}
+	};
 	enum class command : uint8_t {
 		// Commands to keyboard
 		reset = 0x01,
@@ -51,14 +78,14 @@ namespace keyboard {
 	struct boot_report_t {
 		uint8_t modMask = 0;
 		uint8_t reserved = 0;
-		KeyUsage keys[6] = {KeyUsage::RESERVED};
+		array<KeyUsage,6> keys = {{KeyUsage::RESERVED}};
 	};
 	static_assert(sizeof(boot_report_t) == 8, "Invalid report size");
 
 	struct key_report_t {
 		report_type report_id = report_type::key;
 		uint8_t modMask = 0;
-		KeyUsage keys[6] = {KeyUsage::RESERVED};
+		array<KeyUsage,6> keys = {{KeyUsage::RESERVED}};
 	};
 	static_assert(sizeof(key_report_t) == 8, "Invalid report size");
 
@@ -93,14 +120,12 @@ namespace keyboard {
 
 	class keyhandler {
 		union {
-			union {
-				boot_report_t boot_report;
-				unsigned char boot_report_data[sizeof(boot_report_t)];
-			};
-			union {
-				key_report_t key_report;
-				unsigned char key_report_data[sizeof(key_report_t)];
-			};
+			boot_report_t boot_report;
+			unsigned char boot_report_data[sizeof(boot_report_t)];
+		};
+		union {
+			key_report_t key_report;
+			unsigned char key_report_data[sizeof(key_report_t)];
 		};
 		union {
 			media_report_t media_report;
@@ -184,6 +209,7 @@ namespace keyboard {
 		static constexpr uint8_t protocol_boot = 1;
 
 		keyhandler() noexcept :
+			boot_report_data{0}, key_report_data{0}, media_report_data{0}, system_report_data{0},
 			m_mode(mode::off), m_keystate(keystate::clear),
 			m_curOverride(0), m_macroBuffer{0},
 			m_ledState(0), m_protocol(protocol_report)
@@ -204,14 +230,14 @@ namespace keyboard {
 			if (m_mode == mode::off) {
 				m_mode = mode::reset; // keyboard performs self-test on powerup
 				m_keystate = keystate::clear;
-				PORTB |= _BV(PORTB0) | _BV(PORTB1);
+				PORTB |= _BV(PORTB0);
 			}
 		}
 
 		void disable() {
 			if (m_mode != mode::off) {
 				m_mode = mode::off;
-				PORTB &= ~(_BV(PORTB0) | _BV(PORTB1));
+				PORTB &= ~_BV(PORTB0);
 			}
 		}
 
@@ -222,10 +248,10 @@ namespace keyboard {
 		void set_protocol(uint8_t protocol) {
 			if (protocol == protocol_report) {
 				m_protocol = protocol;
-				key_report = key_report_t{report_type::key, 0, {KeyUsage::RESERVED}};
+				PORTB &= ~_BV(PORTB1);
 			} else if (protocol == protocol_boot) {
-				//m_protocol = protocol;
-				//boot_report = {0, 0, {KeyUsage::RESERVED}};
+				m_protocol = protocol;
+				PORTB |= _BV(PORTB1);
 			}
 		}
 
@@ -233,13 +259,19 @@ namespace keyboard {
 
 		void set_led_report(unsigned char data);
 
-		void send_report_intr(report_type type) const;
+		void send_report_intr(report_type type);
 
-		uint8_t set_report_ptr(unsigned char* *ptr, uint8_t main_type, report_type type) const {
+		void update_boot_report() {
+			boot_report.modMask = key_report.modMask;
+			boot_report.keys = key_report.keys;
+		}
+
+		uint8_t set_report_ptr(unsigned char* *ptr, uint8_t main_type, report_type type) {
 			if (main_type != 1) {
 				//return 0;
 			}
 			if (m_protocol == protocol_boot) {
+				update_boot_report();
 				*ptr = const_cast<unsigned char*>(boot_report_data);
 				return sizeof(boot_report_data);
 			} else {

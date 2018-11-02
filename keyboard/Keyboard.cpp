@@ -118,8 +118,8 @@ namespace keyboard {
 					command(::keyboard::command::led_status, m_ledState);
 					m_mode = mode::normal;
 				} else if (c == response::reset_fail1) {
-					for (size_t i = 0; i < 6; i++) {
-						key_report.keys[i] = KeyUsage::ERROR_POST_FAIL;
+					for (auto& key: key_report.keys) {
+						key = KeyUsage::ERROR_POST_FAIL;
 					}
 				} else if (c == response::reset_fail2) {
 					m_mode = mode::error;
@@ -131,8 +131,8 @@ namespace keyboard {
 				if (c == response::idle) {
 					if (m_keystate != keystate::clear) {
 						key_report.modMask = 0;
-						for (size_t i = 0; i < 6; i++) {
-							key_report.keys[i] = KeyUsage::RESERVED;
+						for (auto& key: key_report.keys) {
+							key = KeyUsage::RESERVED;
 						}
 						if (m_keystate == keystate::rollover) {
 							command(::keyboard::command::click_off);
@@ -275,16 +275,16 @@ namespace keyboard {
 		if (key >= KeyUsage::RESERVED && key <= KeyUsage::VOLUME_DOWN &&
 		  m_keystate != keystate::rollover) {
 			size_t i;
-			for (i = 0; i < 6; i++) {
-				if (key_report.keys[i] == KeyUsage::RESERVED) {
-					key_report.keys[i] = key;
+			for (auto& rkey: key_report.keys) {
+				if (rkey == KeyUsage::RESERVED) {
+					rkey = key;
 					break;
 				}
 			}
-			if (i == 6) {
+			if (i == key_report.keys.size()) {
 				m_keystate = keystate::rollover;
-				for (i = 0; i < 6; i++) {
-					key_report.keys[i] = KeyUsage::ERROR_ROLLOVER;
+				for (auto& rkey: key_report.keys) {
+					rkey = KeyUsage::ERROR_ROLLOVER;
 				}
 				command(::keyboard::command::click_on);
 			} else {
@@ -309,9 +309,9 @@ namespace keyboard {
 			return report_type::system;
 		} else if (key >= KeyUsage::RESERVED && key <= KeyUsage::VOLUME_DOWN &&
 		  m_keystate != keystate::rollover) {
-			for (size_t i = 0; i < 6; i++) {
-				if (key_report.keys[i] == key) {
-					key_report.keys[i] = KeyUsage::RESERVED;
+			for (auto& rkey: key_report.keys) {
+				if (rkey == key) {
+					rkey = KeyUsage::RESERVED;
 					break;
 				}
 			}
@@ -319,8 +319,8 @@ namespace keyboard {
 
 		if (m_keystate != keystate::clear) {
 			bool clear = true;
-			for (size_t i = 0; i < 6; i++) {
-				if (key_report.keys[i] != KeyUsage::RESERVED) {
+			for (auto const& rkey: key_report.keys) {
+				if (rkey != KeyUsage::RESERVED) {
 					clear = false;
 					break;
 				}
@@ -494,7 +494,7 @@ namespace keyboard {
 		set_ledstate(ledStatus);
 	}
 
-	void keyhandler::send_report_intr(report_type type) const {
+	void keyhandler::send_report_intr(report_type type) {
 		if (type == report_type::none) {
 			return;
 		}
@@ -504,6 +504,7 @@ namespace keyboard {
 		}
 
 		if (m_protocol == protocol_boot && (type == report_type::boot || type == report_type::key)) {
+			update_boot_report();
 			usbSetInterrupt(const_cast<unsigned char *>(boot_report_data), sizeof(boot_report_data));
 		} else {
 			switch(type) {
