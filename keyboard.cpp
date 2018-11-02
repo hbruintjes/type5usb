@@ -140,6 +140,7 @@ static void usbReset() {
 int main()
 {
 	wdt_disable();
+	cli();
 
 	// Turn off stuff not needed
 	ACSR |= _BV(ACD);
@@ -149,9 +150,6 @@ int main()
 	// Clear reset status flag
 	MCUSR = 0;
 
-	// Enable interrupt on pin change,
-	// usbdrv.h does not have a place for that
-	EIMSK |= _BV(PCIE1);
 /*
 	cli();
 	// Enable USB interrupts and go to sleep immediately, waking up
@@ -179,7 +177,12 @@ int main()
 	initTimer();
 	uart::init(1200);
 	keyboard_handler.init();
-	usbReset();
+	usbDeviceConnect();
+	usbInit();
+	// Enable interrupt on pin change,
+	// usbdrv.h does not have a place for that
+	//PCMSK1 = _BV(PCINT11);
+	sei();
 
 	// Wait for configuration to be set. Only then enable kbd and draw power
 	while(usbConfiguration != 1) {
