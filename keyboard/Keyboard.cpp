@@ -268,8 +268,19 @@ namespace keyboard {
 			media_report.keyMask |= 1 << bit;
 			return report_type::media;
 		} else if (key == KeyUsage::POWER) {
+			// Since sleep & power are the same key (but shifted)
+			// simply overwrite value, do not OR
+			if (key_report.modMask & 0b00100010) {
+				// power
+				system_report.keyMask = 0b01;
+			} else {
+				// sleep
+				system_report.keyMask = 0b10;
+			}
+			/*
 			auto bit = as_byte(key) - as_byte(KeyUsage::POWER);
 			system_report.keyMask |= 1 << bit;
+			 */
 			return report_type::system;
 		}
 		if (key >= KeyUsage::RESERVED && key <= KeyUsage::VOLUME_DOWN &&
@@ -304,8 +315,12 @@ namespace keyboard {
 			media_report.keyMask &= ~(1 << bit);
 			return report_type::media;
 		} else if (key == KeyUsage::POWER) {
+			system_report.keyMask = 0;
+			/* Since both sleep & power are the same key, release both since
+			 * shift may be released beforehand
 			auto bit = as_byte(key) - as_byte(KeyUsage::POWER);
 			system_report.keyMask &= ~(1 << bit);
+			 */
 			return report_type::system;
 		} else if (key >= KeyUsage::RESERVED && key <= KeyUsage::VOLUME_DOWN &&
 		  m_keystate != keystate::rollover) {
