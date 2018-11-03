@@ -144,7 +144,7 @@ namespace keyboard {
 					return;
 				}
 
-				if (c == ::keyboard::keys::fn) {
+				if (c == ::keyboard::keys::special) {
 					if (m_mode == mode::macro_record) {
 						command(::keyboard::command::click_off);
 						reset_led();
@@ -168,7 +168,7 @@ namespace keyboard {
 				}
 				return;
 			case mode::morse:
-				if (c == ::keyboard::keys::fn) {
+				if (c == ::keyboard::keys::special) {
 					reset_led();
 					m_mode = mode::normal;
 				} else {
@@ -176,7 +176,7 @@ namespace keyboard {
 				}
 				return;
 			case mode::keyswap1:
-				if (c == ::keyboard::keys::fn) {
+				if (c == ::keyboard::keys::special) {
 					reset_led();
 					m_mode = mode::normal;
 				} else if (c < response::idle) {
@@ -188,7 +188,7 @@ namespace keyboard {
 				if (c < response::idle) {
 					reset_led();
 					m_mode = mode::normal;
-					if (c != ::keyboard::keys::fn) {
+					if (c != ::keyboard::keys::special) {
 						// Read original code from flash
 						auto keyUsage = static_cast<KeyUsage>(pgm_read_word_near(keymap_flash + m_curOverride));
 						eeprom_update_byte(reinterpret_cast<uint8_t*>(keymap_eeprom + c), static_cast<uint8_t>(keyUsage));
@@ -383,7 +383,7 @@ namespace keyboard {
 			//TODO: check if shifted key, return true if so
 			return report_type::none;
 		}
-		if (c == ::keyboard::keys::help) {
+		if (c == ::keyboard::keys::f1) {
 			m_mode = mode::morse;
 			beep<150>();
 		} else if (c == ::keyboard::keys::cut) {

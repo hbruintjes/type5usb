@@ -142,5 +142,7 @@ namespace keyboard {
 		constexpr uint8_t cur_left = 0x18;
 		constexpr uint8_t cur_down = 0x1b;
 		constexpr uint8_t cur_right = 0x1c;
+
+		constexpr uint8_t special = help;
 	}
 }
